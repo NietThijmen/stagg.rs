@@ -1,0 +1,49 @@
+---
+# cert-manager is installed separately: https://cert-manager.io/docs/installation/
+# These manifests assume the cert-manager CRDs and controller are already present.
+#
+# DNS-01 is required for the wildcard certificate below. This example uses
+# Cloudflare; swap the solver for your DNS provider (Route53, Google Cloud DNS,
+# Azure DNS, ...) as documented at https://cert-manager.io/docs/configuration/acme/dns01/.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  # Create a scoped Cloudflare API token with Zone:DNS:Edit for your zone.
+  api-token: "REPLACE_WITH_CLOUDFLARE_API_TOKEN"
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+---
+# Wildcard certificate for the platform domain, consumed by the public gateway
+# listener in k8s/envoy-ingress/01-gateway.yaml (secret `public-gateway-tls`).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: public-gateway-wildcard
+  namespace: edge-system
+spec:
+  secretName: public-gateway-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - saas.example
+    - "*.saas.example"

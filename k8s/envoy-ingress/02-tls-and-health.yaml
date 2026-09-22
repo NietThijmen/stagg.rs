@@ -1,18 +1,10 @@
 ---
-# Placeholder TLS certificate. Replace with a real cert-manager Certificate or your provider secret.
-# For testing you can generate a self-signed cert with:
+# The `public-gateway-tls` secret consumed by the public gateway listener is
+# provisioned by cert-manager in k8s/cert-manager/09-cert-manager.yaml.
+# For a quick local test you can instead create a self-signed secret:
 #   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 #     -keyout tls.key -out tls.crt -subj "/CN=*.saas.example"
 #   kubectl create secret tls public-gateway-tls --cert=tls.crt --key=tls.key -n edge-system
-apiVersion: v1
-kind: Secret
-metadata:
-  name: public-gateway-tls
-  namespace: edge-system
-type: kubernetes.io/tls
-data:
-  tls.crt: "REPLACE_ME"
-  tls.key: "REPLACE_ME"
 ---
 # Global health-check route used by load balancer / monitoring.
 # Returns 200 directly from Envoy so external probes do not hit sGTM pods.

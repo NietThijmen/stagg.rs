@@ -27,8 +27,9 @@ Telemetry flows through the OpenTelemetry Collector to ClickHouse.
 1. A Kubernetes cluster (v1.28+ recommended).
 2. [Envoy Gateway](https://gateway.envoyproxy.io/docs/install/) installed.
 3. [Gateway API](https://gateway-api.sigs.k8s.io/guides/) CRDs installed.
-4. A ClickHouse instance reachable from the cluster (not included here).
-5. A TLS certificate for your ingress domain (see `envoy-ingress/02-tls-and-health.yaml`).
+4. [cert-manager](https://cert-manager.io/docs/installation/) installed (for the wildcard TLS certificate).
+5. A DNS provider token for [ExternalDNS](https://kubernetes-sigs.github.io/external-dns/) (records for site hostnames).
+6. A ClickHouse instance reachable from the cluster (not included here).
 
 ## Deploy
 
@@ -41,6 +42,8 @@ Or apply per component:
 ```bash
 kubectl apply -f k8s/namespaces/
 kubectl apply -f k8s/envoy-ingress/
+kubectl apply -f k8s/cert-manager/
+kubectl apply -f k8s/dns/
 kubectl apply -f k8s/egress/
 kubectl apply -f k8s/observability/
 ```
@@ -50,6 +53,18 @@ For the optional in-cluster databases:
 ```bash
 kubectl apply -f k8s/data-stores/
 ```
+
+## TLS and DNS automation
+
+- `cert-manager/09-cert-manager.yaml` defines a Let's Encrypt `ClusterIssuer`
+  (DNS-01) and a wildcard `Certificate` for `*.saas.example`, written to the
+  `public-gateway-tls` secret the gateway listener uses.
+- `dns/10-external-dns.yaml` runs ExternalDNS with the `gateway-httproute`
+  source, so every per-site `HTTPRoute` the reconciler creates gets a matching
+  DNS record automatically.
+- Replace the placeholder Cloudflare tokens and the ACME email before applying.
+  Custom site hostnames outside the platform domain need their own DNS zone
+  filter and, for TLS, a matching gateway listener/certificate.
 
 ## Per-site sGTM deployment
 

@@ -144,7 +144,7 @@ kubectl apply -f k8s/data-stores/
 - [x] Implement Kubernetes manifest generation in the reconciler.
 - [x] Integrate Google Tag Manager API for container creation.
 - [x] Wire WorkOS organization membership to site authorization.
-- [ ] Add certificate management (cert-manager) and DNS automation.
+- [x] Add certificate management (cert-manager) and DNS automation.
 - [ ] Add egress destination management UI/API.
 - [ ] Add real analytics charts and trace detail pages.
 - [ ] Add tests.

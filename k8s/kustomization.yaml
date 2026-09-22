@@ -5,6 +5,8 @@ resources:
   - namespaces/00-namespaces.yaml
   - envoy-ingress/01-gateway.yaml
   - envoy-ingress/02-tls-and-health.yaml
+  - cert-manager/09-cert-manager.yaml
+  - dns/10-external-dns.yaml
   - sgtm/03-example-deployment.yaml
   - sgtm/04-network-policy.yaml
   - egress/05-egress-config.yaml
