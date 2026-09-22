@@ -83,7 +83,11 @@ kubectl apply -f k8s/data-stores/
 - OpenTelemetry access logging and tracing.
 - Dynamic forward proxy for arbitrary allowed hosts.
 
-To add a customer-specific destination, update the `allowed` table in `k8s/egress/05-egress-config.yaml` (or generate it from the control plane).
+To add a customer-specific destination, use the dashboard's website page. The
+worker regenerates the allowlist between the `BEGIN/END MANAGED DESTINATIONS`
+markers in `k8s/egress/05-egress-config.yaml` from the `downstream_destinations`
+table and rolls the egress deployment. You can still edit the file by hand for
+platform-wide defaults.
 
 ## Network isolation
 

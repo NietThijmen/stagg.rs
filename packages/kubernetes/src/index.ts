@@ -29,4 +29,5 @@ export type KubernetesClient = ReturnType<typeof createKubernetesClient>;
 
 export * from './manifests.js';
 export * from './apply.js';
+export * from './egress.js';
 export * from '@kubernetes/client-node';

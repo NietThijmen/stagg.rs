@@ -52,6 +52,7 @@ data:
                               -- Strip port if present.
                               local host = authority:match("^([^:]+)")
                               local allowed = {
+                                -- BEGIN MANAGED DESTINATIONS
                                 ["www.google-analytics.com"] = true,
                                 ["region1.google-analytics.com"] = true,
                                 ["region2.google-analytics.com"] = true,
@@ -59,7 +60,7 @@ data:
                                 ["googleads.g.doubleclick.net"] = true,
                                 ["www.googletagmanager.com"] = true,
                                 ["fonts.gstatic.com"] = true,
-                                -- Add customer-specific destinations here or generate from control plane.
+                                -- END MANAGED DESTINATIONS
                               }
                               if not allowed[host] then
                                 request_handle:logWarn("egress denied: " .. host)

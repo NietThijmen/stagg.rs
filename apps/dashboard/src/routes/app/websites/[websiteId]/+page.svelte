@@ -2,6 +2,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import {
 		Table,
@@ -11,8 +13,10 @@
 		TableHeader,
 		TableRow,
 	} from '$lib/components/ui/table';
-	import { ArrowLeft, Globe, Copy, Check } from '@lucide/svelte';
+	import { ArrowLeft, Globe, Copy, Check, Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 
 	let { data } = $props();
 	const site = $derived(data.site);
@@ -46,6 +50,17 @@
 		toast.success('Copied to clipboard');
 		setTimeout(() => (copied = null), 1500);
 	}
+
+	const enhanceResult: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			if (result.type === 'success') {
+				toast.success('Destination saved');
+			} else if (result.type === 'failure') {
+				toast.error((result.data as { error?: string } | undefined)?.error ?? 'Something went wrong');
+			}
+			await update();
+		};
+	};
 
 	const cnameRecord = $derived(`${site.hostname}\tCNAME\tedge.saas.example`);
 	const gtagSnippet = $derived(
@@ -151,6 +166,102 @@
 				</button>
 				<pre class="pr-8 whitespace-pre-wrap">{gtagSnippet}</pre>
 			</div>
+		</CardContent>
+	</Card>
+
+	<Card>
+		<CardHeader>
+			<CardTitle>Downstream destinations</CardTitle>
+			<CardDescription>
+				Hosts the server container is allowed to forward events to through the egress proxy.
+			</CardDescription>
+		</CardHeader>
+		<CardContent class="flex flex-col gap-6">
+			{#if site.destinations.length === 0}
+				<p class="text-sm text-muted-foreground">No destinations configured yet.</p>
+			{:else}
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Name</TableHead>
+							<TableHead>Host</TableHead>
+							<TableHead>Status</TableHead>
+							<TableHead class="text-right">Actions</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{#each site.destinations as destination (destination.id)}
+							<TableRow>
+								<TableCell class="font-medium">{destination.name}</TableCell>
+								<TableCell class="font-mono text-xs">
+									{destination.host}:{destination.port}
+								</TableCell>
+								<TableCell>
+									<Badge variant={destination.enabled ? 'default' : 'outline'} class="capitalize">
+										{destination.enabled ? 'enabled' : 'disabled'}
+									</Badge>
+								</TableCell>
+								<TableCell>
+									<div class="flex justify-end gap-2">
+										<form method="POST" action="?/toggleDestination" use:enhance={enhanceResult}>
+											<input type="hidden" name="destinationId" value={destination.id} />
+											<Button type="submit" variant="outline" size="sm">
+												{destination.enabled ? 'Disable' : 'Enable'}
+											</Button>
+										</form>
+										<form method="POST" action="?/deleteDestination" use:enhance={enhanceResult}>
+											<input type="hidden" name="destinationId" value={destination.id} />
+											<Button
+												type="submit"
+												variant="ghost"
+												size="icon-sm"
+												aria-label="Delete destination"
+											>
+												<Trash2 class="size-4" />
+											</Button>
+										</form>
+									</div>
+								</TableCell>
+							</TableRow>
+						{/each}
+					</TableBody>
+				</Table>
+			{/if}
+
+			<form
+				method="POST"
+				action="?/addDestination"
+				use:enhance={enhanceResult}
+				class="grid gap-3 sm:grid-cols-[1fr_1fr_7rem_7rem_auto] sm:items-end"
+			>
+				<div class="flex flex-col gap-2">
+					<Label for="destination-name">Name</Label>
+					<Input id="destination-name" name="name" placeholder="Google Analytics" required />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label for="destination-host">Host</Label>
+					<Input id="destination-host" name="host" placeholder="www.google-analytics.com" required />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label for="destination-port">Port</Label>
+					<Input id="destination-port" name="port" type="number" value="443" min="1" max="65535" />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label for="destination-protocol">Protocol</Label>
+					<select
+						id="destination-protocol"
+						name="protocol"
+						class="h-9 rounded-md border bg-transparent px-3 text-sm shadow-xs"
+					>
+						<option value="https">HTTPS</option>
+						<option value="http">HTTP</option>
+					</select>
+				</div>
+				<Button type="submit" class="gap-1">
+					<Plus class="size-4" />
+					Add
+				</Button>
+			</form>
 		</CardContent>
 	</Card>
 

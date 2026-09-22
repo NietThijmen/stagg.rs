@@ -6,6 +6,7 @@ import {
   buildContainerConfigSecret,
   createKubernetesClient,
   siteResourceName,
+  syncEgressAllowlist,
 } from '@staggers/kubernetes';
 import { initTelemetry } from '@staggers/telemetry';
 
@@ -110,6 +111,20 @@ async function fetchContainerConfig(job: ProvisioningJob) {
 const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
   create_gtm_container: createGtmContainer,
   fetch_container_config: fetchContainerConfig,
+  sync_egress_config: async () => {
+    const destinations = await prisma.downstreamDestination.findMany({
+      where: { enabled: true },
+    });
+
+    await syncEgressAllowlist(k8sClient, {
+      namespace: config.kubernetes.edgeNamespace,
+      hosts: destinations.map((destination) => destination.host),
+    });
+
+    console.log(
+      `Synced egress allowlist with ${destinations.length} customer destination(s)`,
+    );
+  },
   provision_site: async (job) => {
     await createGtmContainer(job);
     await fetchContainerConfig(job);
