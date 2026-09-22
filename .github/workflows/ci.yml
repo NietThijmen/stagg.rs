@@ -10,9 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint & typecheck
+  ci:
+    name: Lint, test & build
     runs-on: ubuntu-latest
+    # Placeholder values so SvelteKit can analyse the server bundle at build
+    # time. Real values are only needed at runtime.
+    env:
+      WORKOS_API_KEY: sk_test_ci_placeholder
+      WORKOS_CLIENT_ID: client_test_ci_placeholder
+      WORKOS_REDIRECT_URI: http://localhost:3000/auth/callback
+      WORKOS_COOKIE_PASSWORD: 01234567890123456789012345678901
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staggers
+      CLICKHOUSE_URL: http://localhost:8123
     steps:
       - uses: actions/checkout@v4
 
@@ -28,47 +37,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      # Workspace packages emit their type declarations to dist/, so build
+      # before linting the apps that consume them.
+      - name: Build
+        run: pnpm build
+
+      - name: Lint & typecheck
         run: pnpm lint
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Test
         run: pnpm test
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
