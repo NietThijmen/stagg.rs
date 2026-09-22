@@ -1,0 +1,169 @@
+---
+# Egress Envoy configuration.
+# Acts as a forward HTTP/HTTPS proxy for sGTM pods.
+# All outbound requests are logged via OTEL and restricted by destination allowlist.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: egress-envoy-config
+  namespace: edge-system
+data:
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: egress_http
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 8080
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: egress_http
+                    codec_type: AUTO
+                    route_config:
+                      name: local_route
+                      virtual_hosts:
+                        - name: forward_proxy
+                          domains: ["*"]
+                          routes:
+                            - match:
+                                prefix: "/"
+                              route:
+                                cluster: dynamic_forward_proxy_cluster
+                                timeout: 30s
+                    http_filters:
+                      # Enforce destination allowlist before forwarding.
+                      - name: envoy.filters.http.lua
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                          inline_code: |
+                            function envoy_on_request(request_handle)
+                              local authority = request_handle:headers():get(":authority")
+                              if authority == nil then
+                                request_handle:respond(
+                                  {[":status"] = "403"},
+                                  "missing :authority"
+                                )
+                                return
+                              end
+                              -- Strip port if present.
+                              local host = authority:match("^([^:]+)")
+                              local allowed = {
+                                ["www.google-analytics.com"] = true,
+                                ["region1.google-analytics.com"] = true,
+                                ["region2.google-analytics.com"] = true,
+                                ["www.googleadservices.com"] = true,
+                                ["googleads.g.doubleclick.net"] = true,
+                                ["www.googletagmanager.com"] = true,
+                                ["fonts.gstatic.com"] = true,
+                                -- Add customer-specific destinations here or generate from control plane.
+                              }
+                              if not allowed[host] then
+                                request_handle:logWarn("egress denied: " .. host)
+                                request_handle:respond(
+                                  {[":status"] = "403"},
+                                  "destination not allowed"
+                                )
+                              end
+                            end
+                      - name: envoy.filters.http.dynamic_forward_proxy
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                          dns_cache_config:
+                            name: dynamic_forward_proxy_cache_config
+                            dns_lookup_family: V4_ONLY
+                            max_hosts: 1024
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                    access_log:
+                      - name: envoy.access_loggers.open_telemetry
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
+                          common_config:
+                            log_name: egress_access_log
+                            grpc_service:
+                              envoy_grpc:
+                                cluster_name: otel_collector_grpc
+                            transport_api_version: V3
+                          body:
+                            string_value: "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %RESPONSE_CODE%"
+                          attributes:
+                            values:
+                              - key: saas.component
+                                value:
+                                  string_value: egress
+                              - key: saas.site_id
+                                value:
+                                  string_value: "%REQ(x-sgtm-site-id)?%"
+                              - key: downstream.host
+                                value:
+                                  string_value: "%REQ(:AUTHORITY)%"
+                              - key: http.status_code
+                                value:
+                                  string_value: "%RESPONSE_CODE%"
+                              - key: envoy.response_flags
+                                value:
+                                  string_value: "%RESPONSE_FLAGS%"
+                    tracing:
+                      provider:
+                        name: envoy.tracers.opentelemetry
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.tracers.opentelemetry.v3.OpenTelemetryConfig
+                          grpc_service:
+                            envoy_grpc:
+                              cluster_name: otel_collector_grpc
+                          service_name: egress-envoy
+                      spawn_upstream_span: true
+
+      clusters:
+        - name: dynamic_forward_proxy_cluster
+          connect_timeout: 10s
+          lb_policy: CLUSTER_PROVIDED
+          cluster_type:
+            cluster_type: envoy.clusters.dynamic_forward_proxy
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+              dns_cache_config:
+                name: dynamic_forward_proxy_cache_config
+                dns_lookup_family: V4_ONLY
+                max_hosts: 1024
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              common_tls_context:
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/ssl/certs/ca-certificates.crt
+
+        - name: otel_collector_grpc
+          connect_timeout: 1s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              upstream_protocol_options:
+                explicit_http_config:
+                  http2_protocol_options: {}
+          load_assignment:
+            cluster_name: otel_collector_grpc
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: otel-collector.platform-system.svc.cluster.local
+                          port_value: 4317
+
+    overload_manager:
+      refresh_interval: 0.25s
+      resource_monitors:
+        - name: envoy.resource_monitors.global_downstream_max_connections
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+            max_active_downstream_connections: 50000

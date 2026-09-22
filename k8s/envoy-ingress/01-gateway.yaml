@@ -1,0 +1,85 @@
+---
+# GatewayClass references the Envoy Gateway controller installed in the cluster.
+# Install Envoy Gateway first: https://gateway.envoyproxy.io/docs/install/
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: staggers-public
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+# Public-facing gateway. Replace the hostnames and certificate refs with your real DNS/TLS setup.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public-gateway
+  namespace: edge-system
+  annotations:
+    # Optional: tell Envoy Gateway to emit OTEL access logs.
+    gateway.envoyproxy.io/enable-access-log: "true"
+spec:
+  gatewayClassName: staggers-public
+  listeners:
+    - name: https-public
+      protocol: HTTPS
+      port: 443
+      hostname: "*.saas.example"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: public-gateway-tls
+            namespace: edge-system
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: http-redirect
+      protocol: HTTP
+      port: 80
+      hostname: "*.saas.example"
+      allowedRoutes:
+        namespaces:
+          from: All
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: public-proxy-config
+      namespace: edge-system
+---
+# Custom Envoy proxy config to enable OTEL tracing and access logging.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: public-proxy-config
+  namespace: edge-system
+spec:
+  telemetry:
+    accessLog:
+      settings:
+        - format:
+            type: JSON
+            json:
+              path: /dev/stdout
+          matches:
+            - "{}"
+    tracing:
+      provider:
+        type: OpenTelemetry
+        host: otel-collector.platform-system.svc.cluster.local
+        port: 4317
+      samplingRate: 100
+  # Pin to at least two Envoy pods for HA. The control plane will scale these.
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+        container:
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi

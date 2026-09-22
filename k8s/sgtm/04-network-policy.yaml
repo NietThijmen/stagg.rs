@@ -1,0 +1,89 @@
+---
+# Restrict sGTM pods so they cannot talk directly to the internet or other tenants.
+# All outbound traffic must go through egress-envoy.edge-system.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sgtm
+      staggers.io/site-id: example
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only accept traffic from the edge-system namespace (Envoy ingress).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: edge-system
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # DNS inside the cluster.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+    # Platform egress proxy only.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: edge-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: egress-envoy
+      ports:
+        - protocol: TCP
+          port: 8080
+    # OTEL collector for sGTM self-reported telemetry (if enabled).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+---
+# Resource quota per site to prevent one tenant from starving the cluster.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+spec:
+  hard:
+    requests.cpu: "5"
+    requests.memory: 6Gi
+    limits.cpu: "10"
+    limits.memory: 12Gi
+    pods: "15"
+---
+# Limit range sets sensible defaults for any pod in the namespace.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+spec:
+  limits:
+    - default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: "1"
+        memory: 512Mi
+      type: Container

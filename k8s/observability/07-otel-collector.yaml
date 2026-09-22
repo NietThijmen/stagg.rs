@@ -1,0 +1,63 @@
+---
+# OpenTelemetry Collector configuration.
+# Receives OTLP traces/logs/metrics from Envoy, sGTM, and Node services.
+# Exports to ClickHouse for analytics and to console for debugging.
+# Requires the OpenTelemetry Collector Contrib image (clickhouse exporter).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: platform-system
+data:
+  otel-collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+      resource:
+        attributes:
+          - key: saas.platform
+            value: staggers
+            action: upsert
+
+    exporters:
+      clickhouse:
+        # Update with your ClickHouse DSN or use a Kubernetes secret in production.
+        endpoint: tcp://clickhouse.platform-system.svc.cluster.local:9000
+        database: otel
+        traces_table_name: otel_traces
+        logs_table_name: otel_logs
+        metrics_table_name: otel_metrics
+        ttl: 720h
+        timeout: 10s
+        # Default create database/tables. Disable in production after initial setup.
+        create_schema: true
+
+      debug:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [clickhouse, debug]
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [clickhouse, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [debug]
+      telemetry:
+        logs:
+          level: info

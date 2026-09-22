@@ -1,0 +1,189 @@
+---
+# Example per-website sGTM production deployment.
+# The control plane will generate one of these per Site/hostname.
+# Replace placeholder values (site-id, hostname, container secret) before applying.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sgtm-site-example-config
+  namespace: customer-workloads
+  labels:
+    app.kubernetes.io/part-of: staggers-platform
+    staggers.io/site-id: example
+type: Opaque
+stringData:
+  # This value comes from the GTM API snippet() call and must be encrypted at rest.
+  container-config: "REPLACE_WITH_GTM_CONTAINER_CONFIG"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+  labels:
+    app.kubernetes.io/name: sgtm
+    staggers.io/site-id: example
+    staggers.io/hostname: metrics.example.com
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sgtm
+      staggers.io/site-id: example
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sgtm
+        staggers.io/site-id: example
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: sgtm-site-example
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: sgtm
+          image: gcr.io/cloud-tagging-10302018/gtm-cloud-image:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: CONTAINER_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: sgtm-site-example-config
+                  key: container-config
+            - name: PREVIEW_SERVER_URL
+              value: "https://preview-site-example.saas.example"
+            # Route all outbound requests through the platform egress proxy.
+            - name: HTTP_PROXY
+              value: "http://egress-envoy.edge-system.svc.cluster.local:8080"
+            - name: HTTPS_PROXY
+              value: "http://egress-envoy.edge-system.svc.cluster.local:8080"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,*.svc.cluster.local"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /healthy
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthy
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+  labels:
+    app.kubernetes.io/name: sgtm
+    staggers.io/site-id: example
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: sgtm
+    staggers.io/site-id: example
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+  labels:
+    staggers.io/site-id: example
+automountServiceAccountToken: false
+---
+# Default HPA: 3 minimum replicas for HA, up to 10 based on CPU.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sgtm-site-example
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+---
+# Envoy Gateway route that exposes this website on its custom hostname.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sgtm-site-example
+  namespace: customer-workloads
+  labels:
+    staggers.io/site-id: example
+spec:
+  parentRefs:
+    - name: public-gateway
+      namespace: edge-system
+      sectionName: https-public
+  hostnames:
+    - metrics.example.com
+  rules:
+    - backendRefs:
+        - name: sgtm-site-example
+          namespace: customer-workloads
+          port: 8080
+      filters:
+        # Envoy Gateway will forward its x-request-id header to the upstream.
+        # OTEL tracing (configured on the Gateway) provides the canonical trace_id.
+        # Do NOT rely on dynamic header values here; Gateway API header modifiers
+        # do not support variable substitution.

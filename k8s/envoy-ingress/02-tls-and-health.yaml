@@ -1,0 +1,42 @@
+---
+# Placeholder TLS certificate. Replace with a real cert-manager Certificate or your provider secret.
+# For testing you can generate a self-signed cert with:
+#   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#     -keyout tls.key -out tls.crt -subj "/CN=*.saas.example"
+#   kubectl create secret tls public-gateway-tls --cert=tls.crt --key=tls.key -n edge-system
+apiVersion: v1
+kind: Secret
+metadata:
+  name: public-gateway-tls
+  namespace: edge-system
+type: kubernetes.io/tls
+data:
+  tls.crt: "REPLACE_ME"
+  tls.key: "REPLACE_ME"
+---
+# Global health-check route used by load balancer / monitoring.
+# Returns 200 directly from Envoy so external probes do not hit sGTM pods.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gateway-health
+  namespace: edge-system
+spec:
+  parentRefs:
+    - name: public-gateway
+      sectionName: https-public
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /_platform/health
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /
+      backendRefs:
+        - name: sgtm-platform-health
+          port: 8080
+  # The backend below is a tiny static responder; create it or replace with an inline direct response once supported.

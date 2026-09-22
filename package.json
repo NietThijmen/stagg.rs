@@ -1,0 +1,21 @@
+{
+  "name": "staggers",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @staggers/db generate",
+    "db:migrate": "pnpm --filter @staggers/db migrate",
+    "db:studio": "pnpm --filter @staggers/db studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

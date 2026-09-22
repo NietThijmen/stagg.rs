@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespaces/00-namespaces.yaml
+  - envoy-ingress/01-gateway.yaml
+  - envoy-ingress/02-tls-and-health.yaml
+  - sgtm/03-example-deployment.yaml
+  - sgtm/04-network-policy.yaml
+  - egress/05-egress-config.yaml
+  - egress/06-egress-deployment.yaml
+  - observability/07-otel-collector.yaml
+  - observability/08-otel-collector-deployment.yaml

@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id
+  name      String
+  workosId  String   @unique @map("workos_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sites        Site[]
+  memberships  Membership[]
+  destinations DownstreamDestination[]
+
+  @@map("organizations")
+}
+
+model User {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  memberships Membership[]
+
+  @@map("users")
+}
+
+model Membership {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  organizationId String   @map("organization_id")
+  role           String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("memberships")
+}
+
+model Site {
+  id                      String     @id @default(uuid())
+  organizationId          String     @map("organization_id")
+  name                    String
+  hostname                String     @unique
+  previewHostname         String     @unique @map("preview_hostname")
+  status                  SiteStatus @default(pending)
+  desiredReplicas         Int        @default(3) @map("desired_replicas")
+  minReplicas             Int        @default(3) @map("min_replicas")
+  maxReplicas             Int        @default(10) @map("max_replicas")
+  gtmAccountId            String?    @map("gtm_account_id")
+  gtmContainerId          String?    @map("gtm_container_id")
+  containerConfigSecretName String?  @map("container_config_secret_name")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deployments  SiteDeployment[]
+  destinations DownstreamDestination[]
+
+  @@map("sites")
+}
+
+enum SiteStatus {
+  pending
+  provisioning
+  ready
+  degraded
+  failed
+  deleting
+}
+
+model SiteDeployment {
+  id                String            @id @default(uuid())
+  siteId            String            @map("site_id")
+  revision          String
+  image             String
+  status            DeploymentStatus  @default(pending)
+  observedGeneration Int              @default(0) @map("observed_generation")
+  startedAt         DateTime          @default(now()) @map("started_at")
+  completedAt       DateTime?         @map("completed_at")
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@map("site_deployments")
+}
+
+enum DeploymentStatus {
+  pending
+  in_progress
+  ready
+  failed
+  rolling_back
+}
+
+model DownstreamDestination {
+  id        String  @id @default(uuid())
+  siteId    String  @map("site_id")
+  organizationId String @map("organization_id")
+  name      String
+  host      String
+  port      Int     @default(443)
+  protocol  String  @default("https")
+  enabled   Boolean @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("downstream_destinations")
+}
+
+model ProvisioningJob {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  siteId         String?   @map("site_id")
+  type           String
+  payload        Json?
+  status         String    @default("pending")
+  error          String?
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("provisioning_jobs")
+}
