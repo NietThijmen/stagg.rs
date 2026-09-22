@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Separator } from '$lib/components/ui/separator';
-	import { ArrowRight, Shield, Globe, BarChart3, Server } from '@lucide/svelte';
+	import { ArrowRight, Shield, Globe, BarChart3 } from '@lucide/svelte';
 
 	let { data } = $props();
 </script>
@@ -13,14 +11,13 @@
 </svelte:head>
 
 <div class="flex min-h-screen flex-col">
-	<header class="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-		<div class="container flex h-14 items-center justify-between">
-			<div class="flex items-center gap-2 font-semibold">
-				<Server class="size-5 text-primary" />
-				<span>Staggers</span>
-				<Badge variant="secondary" class="hidden text-xs sm:inline-flex">Beta</Badge>
+	<header class="border-b">
+		<div class="mx-auto flex h-12 w-full max-w-5xl items-center justify-between px-6">
+			<div class="flex items-center gap-2.5">
+				<span class="size-4 rounded-sm border-2 border-foreground"></span>
+				<span class="text-sm font-semibold tracking-tight">Staggers</span>
 			</div>
-			<nav class="flex items-center gap-4">
+			<nav class="flex items-center gap-2">
 				{#if data.user}
 					<Button href="/app/websites" size="sm">Dashboard</Button>
 				{:else}
@@ -32,43 +29,41 @@
 	</header>
 
 	<main class="flex-1">
-		<section class="container flex flex-col items-center gap-6 py-24 text-center md:py-32">
-			<Badge variant="outline" class="rounded-full px-3 py-1 text-sm">
+		<section class="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-6 py-28 text-center">
+			<span class="rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground">
 				Server-side Google Tag Manager hosting
-			</Badge>
-			<h1 class="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+			</span>
+			<h1 class="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
 				Own your data pipeline.<br />
 				<span class="text-muted-foreground">Without the infrastructure headache.</span>
 			</h1>
-			<p class="max-w-xl text-lg text-muted-foreground">
+			<p class="max-w-xl text-muted-foreground">
 				Staggers deploys sGTM containers on your Kubernetes cluster, routes traffic through Envoy,
 				and streams analytics into ClickHouse — all managed from one dashboard.
 			</p>
 			<div class="flex flex-wrap items-center justify-center gap-3">
 				{#if data.user}
-					<Button href="/app/websites" size="lg">
+					<Button href="/app/websites">
 						Go to dashboard
 						<ArrowRight class="size-4" />
 					</Button>
 				{:else}
-					<Button href={data.signInUrl ?? '/sign-in'} size="lg">
+					<Button href={data.signInUrl ?? '/sign-in'}>
 						Sign in to dashboard
 						<ArrowRight class="size-4" />
 					</Button>
-					<Button href={data.signUpUrl ?? '/sign-in'} variant="outline" size="lg">
+					<Button href={data.signUpUrl ?? '/sign-in'} variant="outline">
 						Create account
 					</Button>
 				{/if}
 			</div>
 		</section>
 
-		<Separator />
-
-		<section class="container py-16 md:py-24">
-			<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+		<section class="mx-auto w-full max-w-5xl px-6 pb-24">
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				<Card>
 					<CardHeader>
-						<Globe class="mb-2 size-8 text-primary" />
+						<Globe class="mb-2 size-5 text-muted-foreground" />
 						<CardTitle>Per-site sGTM containers</CardTitle>
 						<CardDescription>
 							Provision isolated server-side GTM containers for every site from the dashboard.
@@ -83,7 +78,7 @@
 
 				<Card>
 					<CardHeader>
-						<Shield class="mb-2 size-8 text-primary" />
+						<Shield class="mb-2 size-5 text-muted-foreground" />
 						<CardTitle>Envoy ingress & egress</CardTitle>
 						<CardDescription>
 							Route traffic securely through Envoy Gateway with fine-grained egress controls.
@@ -98,7 +93,7 @@
 
 				<Card>
 					<CardHeader>
-						<BarChart3 class="mb-2 size-8 text-primary" />
+						<BarChart3 class="mb-2 size-5 text-muted-foreground" />
 						<CardTitle>ClickHouse observability</CardTitle>
 						<CardDescription>
 							Stream OTEL traces, logs, and metrics into ClickHouse for real-time analytics.
@@ -115,9 +110,9 @@
 	</main>
 
 	<footer class="border-t py-6">
-		<div class="container flex items-center justify-between text-sm text-muted-foreground">
+		<div class="mx-auto flex w-full max-w-5xl items-center justify-between px-6 text-xs text-muted-foreground">
 			<span>© Staggers</span>
-			<span>Built with SvelteKit & shadcn-svelte</span>
+			<span>Server-side GTM hosting</span>
 		</div>
 	</footer>
 </div>

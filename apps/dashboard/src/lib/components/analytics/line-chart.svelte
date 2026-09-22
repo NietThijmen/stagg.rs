@@ -16,6 +16,7 @@
 
 	const width = 600;
 	const padding = 8;
+	const gridLines = [0.25, 0.5, 0.75, 1];
 
 	const max = $derived(Math.max(1, ...data.map((point) => point.value)));
 
@@ -40,8 +41,22 @@
 </script>
 
 <svg viewBox={`0 0 ${width} ${height}`} class="w-full" role="img">
+	{#each gridLines as fraction}
+		{@const y = height - padding - fraction * (height - padding * 2)}
+		<line
+			x1={padding}
+			x2={width - padding}
+			y1={y}
+			y2={y}
+			stroke="currentColor"
+			stroke-width="1"
+			stroke-dasharray="4 4"
+			class="text-foreground/10"
+			vector-effect="non-scaling-stroke"
+		/>
+	{/each}
 	{#if areaPath}
-		<path d={areaPath} class="text-primary/10" fill="currentColor" />
+		<path d={areaPath} class="text-foreground/5" fill="currentColor" />
 	{/if}
 	{#if linePath}
 		<path
@@ -49,12 +64,12 @@
 			fill="none"
 			stroke="currentColor"
 			stroke-width="2"
-			class="text-primary"
+			class="text-foreground/80"
 			vector-effect="non-scaling-stroke"
 		/>
 	{/if}
 	{#each points as point}
-		<circle cx={point.x} cy={point.y} r="2.5" class="text-primary" fill="currentColor">
+		<circle cx={point.x} cy={point.y} r="2.5" class="text-foreground/80" fill="currentColor">
 			<title>{point.label}: {formatValue(point.value)}</title>
 		</circle>
 	{/each}

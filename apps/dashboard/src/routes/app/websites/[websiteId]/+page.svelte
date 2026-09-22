@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Separator } from '$lib/components/ui/separator';
+	import {
+		Select,
+		SelectContent,
+		SelectItem,
+		SelectTrigger,
+	} from '$lib/components/ui/select';
 	import {
 		Table,
 		TableBody,
@@ -13,20 +18,34 @@
 		TableHeader,
 		TableRow,
 	} from '$lib/components/ui/table';
-	import { ArrowLeft, Globe, Copy, Check, Plus, Trash2 } from '@lucide/svelte';
+	import { Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import BarChart from '$lib/components/analytics/bar-chart.svelte';
 	import LineChart from '$lib/components/analytics/line-chart.svelte';
+	import PageHeader from '$lib/components/page-header.svelte';
+	import BackButton from '$lib/components/back-button.svelte';
+	import StatTile from '$lib/components/stat-tile.svelte';
+	import EmptyState from '$lib/components/empty-state.svelte';
+	import CodeBlock from '$lib/components/code-block.svelte';
+	import StatusBadge from '$lib/components/status-badge.svelte';
+	import SegmentedControl from '$lib/components/segmented-control.svelte';
+	import {
+		formatBucket,
+		formatDate,
+		formatDuration,
+		formatNumber,
+		formatPercent,
+	} from '$lib/format.js';
 
 	let { data } = $props();
 	const site = $derived(data.site);
 
 	const rangeOptions = [
-		{ value: '24h', label: '24h' },
-		{ value: '7d', label: '7d' },
-		{ value: '30d', label: '30d' },
+		{ value: '24h', label: '24h', href: '?range=24h' },
+		{ value: '7d', label: '7d', href: '?range=7d' },
+		{ value: '30d', label: '30d', href: '?range=30d' },
 	];
 
 	const rangeLabel = $derived(
@@ -48,54 +67,7 @@
 		}))
 	);
 
-	function formatBucket(bucket: string) {
-		const date = new Date(`${bucket.replace(' ', 'T')}Z`);
-		return Number.isNaN(date.getTime())
-			? bucket
-			: date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit' });
-	}
-
-	function formatNumber(value: number) {
-		return new Intl.NumberFormat('en-US').format(value);
-	}
-
-	function formatPercent(value: number) {
-		return `${(value * 100).toFixed(1)}%`;
-	}
-
-	function formatDuration(value: number) {
-		return `${Math.round(value)} ms`;
-	}
-
-	let copied = $state<'cname' | 'gtag' | null>(null);
-
-	function statusVariant(status: string) {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'pending':
-				return 'secondary';
-			case 'failed':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
-	function formatDate(date: Date | string | null) {
-		if (!date) return '—';
-		return new Intl.DateTimeFormat('en-US', {
-			dateStyle: 'medium',
-			timeStyle: 'short',
-		}).format(new Date(date));
-	}
-
-	function copyCode(type: 'cname' | 'gtag', text: string) {
-		navigator.clipboard.writeText(text);
-		copied = type;
-		toast.success('Copied to clipboard');
-		setTimeout(() => (copied = null), 1500);
-	}
+	let protocol = $state('https');
 
 	const enhanceResult: SubmitFunction = () => {
 		return async ({ result, update }) => {
@@ -108,7 +80,6 @@
 		};
 	};
 
-	const cnameRecord = $derived(`${site.hostname}\tCNAME\tedge.saas.example`);
 	const gtagSnippet = $derived(
 		`gtag('config', 'G-XXXXXXXXXX', {\n  server_container_url: 'https://${site.hostname}'\n});`
 	);
@@ -118,21 +89,14 @@
 	<title>{site.name} — Staggers</title>
 </svelte:head>
 
-<div class="flex flex-col gap-6">
-	<div class="flex items-center gap-4">
-		<Button href="/app/websites" variant="ghost" size="sm" class="gap-1 pl-0">
-			<ArrowLeft class="size-4" />
-			Back
-		</Button>
-	</div>
+<div class="flex flex-col gap-8">
+	<BackButton href="/app/websites" label="Back to websites" />
 
-	<div class="flex flex-col gap-1">
-		<div class="flex items-center gap-3">
-			<h1 class="text-2xl font-bold tracking-tight">{site.name}</h1>
-			<Badge variant={statusVariant(site.status)} class="capitalize">{site.status}</Badge>
-		</div>
-		<p class="text-muted-foreground">{site.hostname}</p>
-	</div>
+	<PageHeader title={site.name} description={site.hostname}>
+		{#snippet actions()}
+			<StatusBadge status={site.status} />
+		{/snippet}
+	</PageHeader>
 
 	<Card>
 		<CardHeader class="flex flex-row items-center justify-between gap-4">
@@ -140,17 +104,7 @@
 				<CardTitle>Analytics</CardTitle>
 				<CardDescription>Requests and latency from the last {rangeLabel}.</CardDescription>
 			</div>
-			<div class="flex gap-1">
-				{#each rangeOptions as option}
-					<Button
-						href={`?range=${option.value}`}
-						variant={data.range === option.value ? 'secondary' : 'ghost'}
-						size="sm"
-					>
-						{option.label}
-					</Button>
-				{/each}
-			</div>
+			<SegmentedControl options={rangeOptions} value={data.range} />
 		</CardHeader>
 		<CardContent class="flex flex-col gap-6">
 			{#if data.analyticsError}
@@ -159,18 +113,9 @@
 				<p class="text-sm text-muted-foreground">No requests recorded in this period yet.</p>
 			{:else}
 				<div class="grid gap-4 sm:grid-cols-3">
-					<div class="rounded-lg border p-4">
-						<p class="text-xs text-muted-foreground">Total requests</p>
-						<p class="text-2xl font-semibold">{formatNumber(data.analytics.total)}</p>
-					</div>
-					<div class="rounded-lg border p-4">
-						<p class="text-xs text-muted-foreground">Error rate</p>
-						<p class="text-2xl font-semibold">{formatPercent(data.analytics.errorRate)}</p>
-					</div>
-					<div class="rounded-lg border p-4">
-						<p class="text-xs text-muted-foreground">p95 latency</p>
-						<p class="text-2xl font-semibold">{formatDuration(data.analytics.p95Latency)}</p>
-					</div>
+					<StatTile label="Total requests" value={formatNumber(data.analytics.total)} />
+					<StatTile label="Error rate" value={formatPercent(data.analytics.errorRate)} />
+					<StatTile label="p95 latency" value={formatDuration(data.analytics.p95Latency)} />
 				</div>
 
 				<div>
@@ -186,15 +131,12 @@
 		</CardContent>
 	</Card>
 
-	<div class="grid gap-6 lg:grid-cols-2">
+	<div class="grid gap-4 lg:grid-cols-2">
 		<Card>
 			<CardHeader>
-				<CardTitle class="flex items-center gap-2">
-					<Globe class="size-5 text-primary" />
-					Site details
-				</CardTitle>
+				<CardTitle>Site details</CardTitle>
 			</CardHeader>
-			<CardContent class="grid gap-4 text-sm">
+			<CardContent class="grid gap-3 text-sm">
 				<div class="grid grid-cols-2 gap-2">
 					<span class="text-muted-foreground">Hostname</span>
 					<span class="font-medium">{site.hostname}</span>
@@ -218,25 +160,11 @@
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<div class="relative overflow-hidden rounded-md bg-muted p-4 font-mono text-sm">
-					<button
-						type="button"
-						class="absolute top-2 right-2 rounded-md border bg-background p-1.5 text-muted-foreground hover:text-foreground"
-						onclick={() => copyCode('cname', cnameRecord)}
-						aria-label="Copy DNS record"
-					>
-						{#if copied === 'cname'}
-							<Check class="size-4" />
-						{:else}
-							<Copy class="size-4" />
-						{/if}
-					</button>
-					<div class="pr-8">
-						<p>Name: {site.hostname}</p>
-						<p>Type: CNAME</p>
-						<p>Target: edge.saas.example</p>
-					</div>
-				</div>
+				<CodeBlock label="DNS record">
+					<p>Name: {site.hostname}</p>
+					<p>Type: CNAME</p>
+					<p>Target: edge.saas.example</p>
+				</CodeBlock>
 			</CardContent>
 		</Card>
 	</div>
@@ -249,21 +177,9 @@
 			</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<div class="relative overflow-hidden rounded-md bg-muted p-4 font-mono text-sm">
-				<button
-					type="button"
-					class="absolute top-2 right-2 rounded-md border bg-background p-1.5 text-muted-foreground hover:text-foreground"
-					onclick={() => copyCode('gtag', gtagSnippet)}
-					aria-label="Copy gtag snippet"
-				>
-					{#if copied === 'gtag'}
-						<Check class="size-4" />
-					{:else}
-						<Copy class="size-4" />
-					{/if}
-				</button>
-				<pre class="pr-8 whitespace-pre-wrap">{gtagSnippet}</pre>
-			</div>
+			<CodeBlock label="gtag snippet">
+				<pre class="whitespace-pre-wrap">{gtagSnippet}</pre>
+			</CodeBlock>
 		</CardContent>
 	</Card>
 
@@ -295,9 +211,7 @@
 									{destination.host}:{destination.port}
 								</TableCell>
 								<TableCell>
-									<Badge variant={destination.enabled ? 'default' : 'outline'} class="capitalize">
-										{destination.enabled ? 'enabled' : 'disabled'}
-									</Badge>
+									<StatusBadge status={destination.enabled ? 'enabled' : 'disabled'} />
 								</TableCell>
 								<TableCell>
 									<div class="flex justify-end gap-2">
@@ -346,14 +260,15 @@
 				</div>
 				<div class="flex flex-col gap-2">
 					<Label for="destination-protocol">Protocol</Label>
-					<select
-						id="destination-protocol"
-						name="protocol"
-						class="h-9 rounded-md border bg-transparent px-3 text-sm shadow-xs"
-					>
-						<option value="https">HTTPS</option>
-						<option value="http">HTTP</option>
-					</select>
+					<Select type="single" name="protocol" bind:value={protocol}>
+						<SelectTrigger id="destination-protocol" class="w-full">
+							{protocol.toUpperCase()}
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="https">HTTPS</SelectItem>
+							<SelectItem value="http">HTTP</SelectItem>
+						</SelectContent>
+					</Select>
 				</div>
 				<Button type="submit" class="gap-1">
 					<Plus class="size-4" />
@@ -363,16 +278,10 @@
 		</CardContent>
 	</Card>
 
-	<Separator />
-
-	<div>
-		<h2 class="mb-4 text-lg font-semibold">Recent traces</h2>
+	<div class="flex flex-col gap-3">
+		<h2 class="text-base font-semibold">Recent traces</h2>
 		{#if data.traces.length === 0}
-			<Card>
-				<CardContent class="py-8 text-center text-sm text-muted-foreground">
-					No traces yet.
-				</CardContent>
-			</Card>
+			<EmptyState title="No traces yet" />
 		{:else}
 			<Table>
 				<TableHeader>
@@ -399,7 +308,7 @@
 							</TableCell>
 							<TableCell>{trace.spans}</TableCell>
 							<TableCell>{formatDuration(trace.maxDurationMs)}</TableCell>
-							<TableCell>{formatDate(trace.lastSeen)}</TableCell>
+							<TableCell class="text-muted-foreground">{formatDate(trace.lastSeen)}</TableCell>
 						</TableRow>
 					{/each}
 				</TableBody>
@@ -407,16 +316,10 @@
 		{/if}
 	</div>
 
-	<Separator />
-
-	<div>
-		<h2 class="mb-4 text-lg font-semibold">Recent deployments</h2>
+	<div class="flex flex-col gap-3">
+		<h2 class="text-base font-semibold">Recent deployments</h2>
 		{#if site.deployments.length === 0}
-			<Card>
-				<CardContent class="py-8 text-center text-sm text-muted-foreground">
-					No deployments yet.
-				</CardContent>
-			</Card>
+			<EmptyState title="No deployments yet" />
 		{:else}
 			<Table>
 				<TableHeader>
@@ -431,11 +334,9 @@
 						<TableRow>
 							<TableCell class="font-mono text-xs">{deployment.revision}</TableCell>
 							<TableCell>
-								<Badge variant={statusVariant(deployment.status)} class="capitalize">
-									{deployment.status}
-								</Badge>
+								<StatusBadge status={deployment.status} />
 							</TableCell>
-							<TableCell>{formatDate(deployment.startedAt)}</TableCell>
+							<TableCell class="text-muted-foreground">{formatDate(deployment.startedAt)}</TableCell>
 						</TableRow>
 					{/each}
 				</TableBody>

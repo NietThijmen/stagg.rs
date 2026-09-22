@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import {
@@ -10,7 +9,8 @@
 		TableHeader,
 		TableRow,
 	} from '$lib/components/ui/table';
-	import { ArrowLeft } from '@lucide/svelte';
+	import BackButton from '$lib/components/back-button.svelte';
+	import { formatTimestamp } from '$lib/format.js';
 
 	let { data } = $props();
 
@@ -35,13 +35,6 @@
 	function formatDuration(value: number) {
 		return `${value.toFixed(1)} ms`;
 	}
-
-	function formatDate(date: string) {
-		return new Intl.DateTimeFormat('en-US', {
-			dateStyle: 'medium',
-			timeStyle: 'medium',
-		}).format(new Date(`${date.replace(' ', 'T')}Z`));
-	}
 </script>
 
 <svelte:head>
@@ -49,17 +42,7 @@
 </svelte:head>
 
 <div class="flex flex-col gap-6">
-	<div>
-		<Button
-			href={`/app/websites/${data.site.id}`}
-			variant="ghost"
-			size="sm"
-			class="gap-1 pl-0"
-		>
-			<ArrowLeft class="size-4" />
-			Back to {data.site.name}
-		</Button>
-	</div>
+	<BackButton href={`/app/websites/${data.site.id}`} label="Back to {data.site.name}" />
 
 	<Card>
 		<CardHeader>
@@ -99,7 +82,7 @@
 										{row.statusCode.replace('STATUS_CODE_', '').toLowerCase()}
 									</Badge>
 								</TableCell>
-								<TableCell class="text-muted-foreground">{formatDate(row.timestamp)}</TableCell>
+								<TableCell class="text-muted-foreground">{formatTimestamp(row.timestamp)}</TableCell>
 							</TableRow>
 						{/each}
 					</TableBody>
