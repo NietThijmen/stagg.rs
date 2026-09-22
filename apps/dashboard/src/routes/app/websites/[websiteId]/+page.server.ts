@@ -1,7 +1,19 @@
 import { error, fail, type RequestEvent } from '@sveltejs/kit';
 import { prisma } from '$lib/server/db';
 import { requireSiteAccess } from '$lib/server/authz';
+import {
+  getSiteAnalytics,
+  listRecentTraces,
+  type RecentTrace,
+  type SiteAnalytics,
+} from '$lib/server/analytics';
 import type { PageServerLoad, Actions } from './$types';
+
+const RANGE_MS: Record<string, number> = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+};
 
 export const load: PageServerLoad = async (event) => {
   const { site } = await requireSiteAccess(event, event.params.websiteId);
@@ -18,7 +30,25 @@ export const load: PageServerLoad = async (event) => {
     throw error(404, 'Website not found');
   }
 
-  return { site: fullSite };
+  const range = event.url.searchParams.get('range') ?? '24h';
+  const to = new Date();
+  const from = new Date(to.getTime() - (RANGE_MS[range] ?? RANGE_MS['24h']));
+
+  let analytics: SiteAnalytics | null = null;
+  let traces: RecentTrace[] = [];
+  let analyticsError: string | null = null;
+
+  try {
+    [analytics, traces] = await Promise.all([
+      getSiteAnalytics(site.id, from, to),
+      listRecentTraces(site.id, 10),
+    ]);
+  } catch (err) {
+    console.error('Failed to load analytics:', err);
+    analyticsError = err instanceof Error ? err.message : 'Failed to load analytics';
+  }
+
+  return { site: fullSite, analytics, traces, range, analyticsError };
 };
 
 export const actions: Actions = {

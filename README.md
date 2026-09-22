@@ -146,5 +146,5 @@ kubectl apply -f k8s/data-stores/
 - [x] Wire WorkOS organization membership to site authorization.
 - [x] Add certificate management (cert-manager) and DNS automation.
 - [x] Add egress destination management UI/API.
-- [ ] Add real analytics charts and trace detail pages.
+- [x] Add real analytics charts and trace detail pages.
 - [ ] Add tests.

@@ -1,64 +1,29 @@
-import { json, error } from '@sveltejs/kit';
-import { createClickHouseClient } from '@staggers/clickhouse';
-import { loadConfig } from '@staggers/config';
-import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { json } from '@sveltejs/kit';
+import { requireSiteAccess } from '$lib/server/authz';
+import { getSiteAnalytics } from '$lib/server/analytics';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async (event) => {
-  await requireAuth(event);
-
-  const config = loadConfig();
-  const site = await prisma.site.findUnique({
-    where: { id: event.params.websiteId },
-  });
-
-  if (!site) {
-    throw error(404, 'Website not found');
-  }
-
-  // TODO: verify the site belongs to the user's current WorkOS organization.
-
-  const clickhouse = createClickHouseClient(config.clickhouse);
-
-  const from = event.url.searchParams.get('from');
-  const to = event.url.searchParams.get('to');
+  const { site } = await requireSiteAccess(event, event.params.websiteId);
 
   const now = new Date();
-  const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-  const defaultTo = now.toISOString();
+  const defaultFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  const result = await clickhouse.query({
-    query: `
-      SELECT
-        toStartOfInterval(timestamp, INTERVAL 5 minute) AS bucket,
-        count() AS total,
-        countIf(http_status_code >= 400) AS errors,
-        quantile(0.95)(duration_ms) AS p95_latency
-      FROM downstream_requests
-      WHERE site_id = {siteId:String}
-        AND timestamp >= {from:String}
-        AND timestamp < {to:String}
-      GROUP BY bucket
-      ORDER BY bucket
-    `,
-    query_params: {
-      siteId: site.id,
-      from: from ?? defaultFrom,
-      to: to ?? defaultTo,
-    },
-    format: 'JSONEachRow',
-  });
+  const from = parseDate(event.url.searchParams.get('from'), defaultFrom);
+  const to = parseDate(event.url.searchParams.get('to'), now);
 
-  const rows = await result.json<{ bucket: string; total: string; errors: string; p95_latency: number }>();
+  const analytics = await getSiteAnalytics(site.id, from, to);
 
   return json({
     siteId: site.id,
-    rows: rows.map((r) => ({
-      bucket: r.bucket,
-      total: Number(r.total),
-      errors: Number(r.errors),
-      p95Latency: r.p95_latency,
-    })),
+    from: from.toISOString(),
+    to: to.toISOString(),
+    ...analytics,
   });
 };
+
+function parseDate(value: string | null, fallback: Date): Date {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}

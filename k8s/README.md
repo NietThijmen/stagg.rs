@@ -102,11 +102,15 @@ The OTEL Collector receives:
 - Envoy access logs and traces from ingress and egress.
 - Traces from the Node.js control plane (when deployed).
 
-It exports traces and logs to ClickHouse. The dashboard will query ClickHouse for:
+It exports traces and logs to ClickHouse. The dashboard queries ClickHouse for:
 
-- Request counts, latency percentiles, error rates.
-- Downstream destination status.
-- Trace detail views.
+- Request counts, latency percentiles and error rates (`downstream_requests`).
+- Recent traces and per-span trace detail (`otel_traces`).
+
+`downstream_requests` and `site_health_hourly` are product tables defined in
+`packages/clickhouse/src/schema.ts`. Populate `downstream_requests` from
+`otel_traces` with a materialized view (or your own pipeline) before the
+analytics charts show data.
 
 ## Notes / TODO
 

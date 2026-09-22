@@ -17,9 +17,55 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import BarChart from '$lib/components/analytics/bar-chart.svelte';
+	import LineChart from '$lib/components/analytics/line-chart.svelte';
 
 	let { data } = $props();
 	const site = $derived(data.site);
+
+	const rangeOptions = [
+		{ value: '24h', label: '24h' },
+		{ value: '7d', label: '7d' },
+		{ value: '30d', label: '30d' },
+	];
+
+	const rangeLabel = $derived(
+		rangeOptions.find((option) => option.value === data.range)?.label ?? '24h'
+	);
+
+	const requestSeries = $derived(
+		(data.analytics?.points ?? []).map((point) => ({
+			label: formatBucket(point.bucket),
+			value: point.total,
+			error: point.errors,
+		}))
+	);
+
+	const latencySeries = $derived(
+		(data.analytics?.points ?? []).map((point) => ({
+			label: formatBucket(point.bucket),
+			value: Math.round(point.p95Latency),
+		}))
+	);
+
+	function formatBucket(bucket: string) {
+		const date = new Date(`${bucket.replace(' ', 'T')}Z`);
+		return Number.isNaN(date.getTime())
+			? bucket
+			: date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit' });
+	}
+
+	function formatNumber(value: number) {
+		return new Intl.NumberFormat('en-US').format(value);
+	}
+
+	function formatPercent(value: number) {
+		return `${(value * 100).toFixed(1)}%`;
+	}
+
+	function formatDuration(value: number) {
+		return `${Math.round(value)} ms`;
+	}
 
 	let copied = $state<'cname' | 'gtag' | null>(null);
 
@@ -87,6 +133,58 @@
 		</div>
 		<p class="text-muted-foreground">{site.hostname}</p>
 	</div>
+
+	<Card>
+		<CardHeader class="flex flex-row items-center justify-between gap-4">
+			<div class="flex flex-col gap-1.5">
+				<CardTitle>Analytics</CardTitle>
+				<CardDescription>Requests and latency from the last {rangeLabel}.</CardDescription>
+			</div>
+			<div class="flex gap-1">
+				{#each rangeOptions as option}
+					<Button
+						href={`?range=${option.value}`}
+						variant={data.range === option.value ? 'secondary' : 'ghost'}
+						size="sm"
+					>
+						{option.label}
+					</Button>
+				{/each}
+			</div>
+		</CardHeader>
+		<CardContent class="flex flex-col gap-6">
+			{#if data.analyticsError}
+				<p class="text-sm text-destructive">Analytics unavailable: {data.analyticsError}</p>
+			{:else if !data.analytics || data.analytics.total === 0}
+				<p class="text-sm text-muted-foreground">No requests recorded in this period yet.</p>
+			{:else}
+				<div class="grid gap-4 sm:grid-cols-3">
+					<div class="rounded-lg border p-4">
+						<p class="text-xs text-muted-foreground">Total requests</p>
+						<p class="text-2xl font-semibold">{formatNumber(data.analytics.total)}</p>
+					</div>
+					<div class="rounded-lg border p-4">
+						<p class="text-xs text-muted-foreground">Error rate</p>
+						<p class="text-2xl font-semibold">{formatPercent(data.analytics.errorRate)}</p>
+					</div>
+					<div class="rounded-lg border p-4">
+						<p class="text-xs text-muted-foreground">p95 latency</p>
+						<p class="text-2xl font-semibold">{formatDuration(data.analytics.p95Latency)}</p>
+					</div>
+				</div>
+
+				<div>
+					<p class="mb-2 text-sm font-medium">Requests</p>
+					<BarChart data={requestSeries} formatValue={formatNumber} />
+				</div>
+
+				<div>
+					<p class="mb-2 text-sm font-medium">p95 latency (ms)</p>
+					<LineChart data={latencySeries} formatValue={formatDuration} />
+				</div>
+			{/if}
+		</CardContent>
+	</Card>
 
 	<div class="grid gap-6 lg:grid-cols-2">
 		<Card>
@@ -264,6 +362,50 @@
 			</form>
 		</CardContent>
 	</Card>
+
+	<Separator />
+
+	<div>
+		<h2 class="mb-4 text-lg font-semibold">Recent traces</h2>
+		{#if data.traces.length === 0}
+			<Card>
+				<CardContent class="py-8 text-center text-sm text-muted-foreground">
+					No traces yet.
+				</CardContent>
+			</Card>
+		{:else}
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Trace</TableHead>
+						<TableHead>Spans</TableHead>
+						<TableHead>Max duration</TableHead>
+						<TableHead>Last seen</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{#each data.traces as trace (trace.traceId)}
+						<TableRow>
+							<TableCell>
+								<a
+									class="font-mono text-xs underline-offset-4 hover:underline"
+									href={`/app/websites/${site.id}/traces/${trace.traceId}`}
+								>
+									{trace.traceId.slice(0, 16)}…
+								</a>
+								{#if trace.errors > 0}
+									<Badge variant="destructive" class="ml-2">{trace.errors} errors</Badge>
+								{/if}
+							</TableCell>
+							<TableCell>{trace.spans}</TableCell>
+							<TableCell>{formatDuration(trace.maxDurationMs)}</TableCell>
+							<TableCell>{formatDate(trace.lastSeen)}</TableCell>
+						</TableRow>
+					{/each}
+				</TableBody>
+			</Table>
+		{/if}
+	</div>
 
 	<Separator />
 
