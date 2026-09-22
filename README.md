@@ -140,7 +140,7 @@ kubectl apply -f k8s/data-stores/
 
 ## Key TODOs before production
 
-- [ ] Implement Kubernetes manifest generation in the reconciler.
+- [x] Implement Kubernetes manifest generation in the reconciler.
 - [ ] Integrate Google Tag Manager API for container creation.
 - [ ] Wire WorkOS organization membership to site authorization.
 - [ ] Add certificate management (cert-manager) and DNS automation.
