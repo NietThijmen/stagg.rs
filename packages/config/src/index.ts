@@ -23,6 +23,13 @@ const otelConfig = z.object({
   serviceName: z.string().min(1).default('staggers-service'),
 });
 
+const workosConfig = z.object({
+  // Client ID used to verify AuthKit access tokens (JWKS audience).
+  clientId: z.string().optional(),
+  // Secret API key used to call the WorkOS API (validate API keys, manage orgs).
+  apiKey: z.string().optional(),
+});
+
 const gtmConfig = z.object({
   // Google service account with access to the GTM account. Leave unset to
   // disable GTM provisioning.
@@ -36,11 +43,14 @@ const gtmConfig = z.object({
 export const appConfig = z.object({
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(3000),
+  // Port for the public API (kept separate from the dashboard's `port`).
+  apiPort: z.coerce.number().int().min(1).max(65535).default(4000),
   database: databaseConfig,
   clickhouse: clickhouseConfig,
   kubernetes: kubernetesConfig,
   otel: otelConfig,
   gtm: gtmConfig,
+  workos: workosConfig,
   // Base domain used for generated preview hostnames.
   platformDomain: z.string().min(1).default('saas.example'),
   // Container image used for sGTM deployments.
@@ -53,6 +63,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   return appConfig.parse({
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
+    apiPort: env.API_PORT,
     database: {
       url: env.DATABASE_URL,
     },
@@ -75,6 +86,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       serviceAccountEmail: env.GTM_SERVICE_ACCOUNT_EMAIL,
       privateKey: env.GTM_SERVICE_ACCOUNT_PRIVATE_KEY,
       accountId: env.GTM_ACCOUNT_ID,
+    },
+    workos: {
+      clientId: env.WORKOS_CLIENT_ID,
+      apiKey: env.WORKOS_API_KEY,
     },
     platformDomain: env.PLATFORM_DOMAIN,
     sgtmImage: env.SGTM_IMAGE,

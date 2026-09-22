@@ -32,12 +32,15 @@ Observability (ClickHouse via OTel Collector)
 ```text
 apps/
   dashboard/    SvelteKit frontend + BFF (server routes/actions)
+  api/          Public REST API (Hono + zod-openapi), WorkOS bearer auth
+  cli/          `staggers` CLI that talks to the API
   reconciler/   Desired-state reconciler (site manifests)
   worker/       Provisioning job runner (GTM, egress)
 packages/
   contracts/    Shared Zod schemas/types
   config/       Env config validation (Zod)
   db/           Prisma client + PostgreSQL
+  analytics/    ClickHouse analytics query service
   gtm/          Google Tag Manager API client (service-account auth)
   clickhouse/   ClickHouse client + derived table schemas
   kubernetes/   Manifest builders, server-side apply, egress sync
@@ -55,7 +58,10 @@ pnpm lint                    # typecheck every workspace (tsc --noEmit / svelte-
 pnpm test                    # Vitest unit tests
 pnpm test:watch
 pnpm dev                     # run all workspace dev tasks
-pnpm --filter @staggers/dashboard dev   # or reconciler / worker
+pnpm --filter @staggers/dashboard dev   # or api / cli / reconciler / worker
+pnpm api:dev                 # public API with reload
+pnpm cli:dev -- whoami       # run the CLI from source
+pnpm openapi                 # regenerate apps/api/openapi.json
 pnpm db:generate             # prisma generate
 pnpm db:migrate              # prisma migrate dev (needs DATABASE_URL)
 pnpm db:studio
@@ -123,12 +129,33 @@ pointing the reconciler at the local cluster.
   never trust a raw `siteId`/`organizationId` from the client.
 - Org admin roles: `organization_owner`, `organization_admin`.
 
+### Public API and CLI
+
+- `apps/api` is a standalone Hono service (`createApp` in `src/app.ts`) on
+  `API_PORT` (default 4000). It uses `@hono/zod-openapi`; the spec is served at
+  `/openapi.json`, Scalar docs at `/docs`, and committed to `apps/api/openapi.json`
+  (regenerate with `pnpm openapi`). `src/generate-openapi.ts` builds the app with
+  a dummy deps object, so route definitions must not touch `deps` at module load.
+- Auth (`src/lib/auth.ts`) accepts **both** an organization-owned WorkOS API key
+  (validated via `workos.apiKeys.createValidation`) and a WorkOS AuthKit access
+  token (verified against the JWKS from `workos.userManagement.getJwksUrl`). The
+  resulting `Principal` carries organization ids, role/permissions and resolved
+  `scopes` (`src/lib/scopes.ts`). API keys with no permissions get all scopes;
+  users get read-only scopes unless they hold an admin role.
+- Routes under `/v1` (sites, destinations, jobs, analytics, organizations,
+  tokens, `me`) authorize via `src/lib/access.ts` (`requireScope`,
+  `requireSiteAccess`, `requireOrganizationAccess`). Organizations are synced
+  from WorkOS on demand (`src/lib/workos-sync.ts`).
+- `apps/cli` is the `staggers` CLI (commander). It resolves the token from
+  `--token` → `STAGGERS_API_TOKEN` → `~/.config/staggers/config.json`, and the
+  base URL from `--api-url` → `STAGGERS_API_URL` → config → `http://localhost:4000`.
+
 ### Analytics
 
-- `apps/dashboard/src/lib/server/analytics.ts` queries ClickHouse:
-  `downstream_requests` for timeseries/summary/recent traces, `otel_traces`
-  for trace detail. Charts are dependency-free SVG components in
-  `apps/dashboard/src/lib/components/analytics/`.
+- `packages/analytics` owns the ClickHouse queries (`createAnalyticsService`):
+  `downstream_requests` for timeseries/summary/recent traces, `otel_traces` for
+  trace detail. `apps/dashboard/src/lib/server/analytics.ts` and the API both
+  consume it.
 - `packages/clickhouse/src/schema.ts` defines the derived product tables;
   `downstream_requests` must be populated from `otel_traces` (e.g. a
   materialized view) for charts to show data.
@@ -143,6 +170,8 @@ See `.env.example`. Notable variables:
 - `KUBECONFIG`, `K8S_NAMESPACE` (default `customer-workloads`),
   `K8S_EDGE_NAMESPACE` (default `edge-system`)
 - `PLATFORM_DOMAIN` (default `saas.example`), `SGTM_IMAGE`
+- `API_PORT` (default `4000`, used by `apps/api`)
+- `STAGGERS_API_URL`, `STAGGERS_API_TOKEN` (used by `apps/cli`)
 - `GTM_SERVICE_ACCOUNT_EMAIL`, `GTM_SERVICE_ACCOUNT_PRIVATE_KEY`
   (literal `\n` escapes accepted), `GTM_ACCOUNT_ID` (optional)
 - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`

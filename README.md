@@ -38,12 +38,15 @@ Server-side Google Tag Manager hosting platform.
 ```text
 apps/
   dashboard/        SvelteKit frontend + BFF
+  api/              Public REST API (Hono + OpenAPI)
+  cli/              `staggers` command line client
   reconciler/       Kubernetes desired-state reconciler
   worker/           Provisioning and GTM API jobs
 packages/
   contracts/        Shared Zod schemas and types
   config/           Environment config validation
   db/               Prisma ORM + PostgreSQL client
+  analytics/        ClickHouse analytics queries
   gtm/              Google Tag Manager API client
   clickhouse/       ClickHouse client + derived schemas
   kubernetes/       Kubernetes client helpers
@@ -111,6 +114,7 @@ In separate terminals:
 
 ```bash
 pnpm --filter @staggers/dashboard dev
+pnpm --filter @staggers/api dev
 pnpm --filter @staggers/reconciler dev
 pnpm --filter @staggers/worker dev
 ```
@@ -126,6 +130,36 @@ To wipe data volumes:
 ```bash
 docker compose down -v
 ```
+
+## Public API and CLI
+
+`apps/api` exposes a REST API on `API_PORT` (default `4000`) authenticated with
+WorkOS. It accepts either an organization-owned WorkOS API key or a WorkOS
+AuthKit access token as a bearer token:
+
+```bash
+curl -H "Authorization: Bearer $STAGGERS_API_TOKEN" http://localhost:4000/v1/sites
+```
+
+The OpenAPI 3.1 document is served at `/openapi.json` with interactive docs at
+`/docs`, and is also committed to `apps/api/openapi.json` (regenerate with
+`pnpm openapi`).
+
+`apps/cli` provides the `staggers` command line client:
+
+```bash
+pnpm --filter @staggers/cli build
+export STAGGERS_API_URL=http://localhost:4000
+export STAGGERS_API_TOKEN=sk_...
+node apps/cli/dist/index.js whoami
+node apps/cli/dist/index.js sites list
+node apps/cli/dist/index.js sites create --organization org_... --name "My site" --hostname gtm.example.com
+node apps/cli/dist/index.js analytics summary <siteId>
+```
+
+Run `staggers <command> --help` for the full command tree. The CLI resolves its
+token from `--token`, then `STAGGERS_API_TOKEN`, then
+`~/.config/staggers/config.json` (managed with `staggers config set`).
 
 ## Testing
 

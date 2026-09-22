@@ -11,6 +11,7 @@
     "lint": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@staggers/analytics": "workspace:*",
     "@staggers/clickhouse": "workspace:*",
     "@staggers/config": "workspace:*",
     "@staggers/contracts": "workspace:*",

@@ -10,6 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "web:dev": "pnpm --filter @staggers/dashboard dev",
+    "api:dev": "pnpm --filter @staggers/api dev",
+    "cli:dev": "pnpm --filter @staggers/cli dev",
+    "openapi": "pnpm --filter @staggers/api openapi",
     "db:generate": "pnpm --filter @staggers/db generate",
     "db:migrate": "pnpm --filter @staggers/db migrate",
     "db:studio": "pnpm --filter @staggers/db studio"

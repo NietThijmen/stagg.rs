@@ -7,3 +7,10 @@ allowBuilds:
   esbuild: true
   prisma: true
   protobufjs: true
+minimumReleaseAgeExclude:
+  - '@scalar/client-side-rendering@0.4.3'
+  - '@scalar/helpers@0.13.0'
+  - '@scalar/hono-api-reference@0.12.4'
+  - '@scalar/schemas@0.11.0'
+  - '@scalar/types@0.21.0'
+  - '@scalar/validation@0.6.4'
