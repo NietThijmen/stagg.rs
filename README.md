@@ -127,6 +127,15 @@ To wipe data volumes:
 docker compose down -v
 ```
 
+## Testing
+
+Unit tests run with [Vitest](https://vitest.dev/):
+
+```bash
+pnpm test          # single run
+pnpm test:watch    # watch mode
+```
+
 ## Deploying data plane
 
 ```bash
@@ -147,4 +156,4 @@ kubectl apply -f k8s/data-stores/
 - [x] Add certificate management (cert-manager) and DNS automation.
 - [x] Add egress destination management UI/API.
 - [x] Add real analytics charts and trace detail pages.
-- [ ] Add tests.
+- [x] Add tests.
