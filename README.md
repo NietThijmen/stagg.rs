@@ -68,19 +68,27 @@ cp .env.example .env
 # Edit .env with your credentials
 ```
 
-### 3. Start databases
+### 3. Start infrastructure
 
-For local development you can use the Kubernetes manifests or Docker:
+The included `docker-compose.yml` starts PostgreSQL, ClickHouse, and a local k3s Kubernetes controller:
 
 ```bash
-docker run -d --name staggers-postgres \
-  -e POSTGRES_PASSWORD=localdev \
-  -p 5432:5432 postgres:17-alpine
+docker compose up -d
+```
 
-docker run -d --name staggers-clickhouse \
-  -e CLICKHOUSE_PASSWORD=localdev \
-  -p 8123:8123 -p 9000:9000 \
-  clickhouse/clickhouse-server:24.10-alpine
+Wait for k3s to write its kubeconfig:
+
+```bash
+# macOS/Linux
+until [ -f .kubeconfig/kubeconfig.yaml ]; do sleep 1; done
+sed -i '' 's|https://127.0.0.1:6443|https://localhost:6443|' .kubeconfig/kubeconfig.yaml
+```
+
+Then update `.env` to point at the generated kubeconfig:
+
+```bash
+# .env
+KUBECONFIG=/absolute/path/to/.kubeconfig/kubeconfig.yaml
 ```
 
 ### 4. Run database migrations
@@ -103,6 +111,18 @@ In separate terminals:
 pnpm --filter @staggers/dashboard dev
 pnpm --filter @staggers/reconciler dev
 pnpm --filter @staggers/worker dev
+```
+
+### 7. Stop infrastructure
+
+```bash
+docker compose down
+```
+
+To wipe data volumes:
+
+```bash
+docker compose down -v
 ```
 
 ## Deploying data plane

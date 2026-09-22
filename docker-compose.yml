@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: staggers-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: staggers
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.10-alpine
+    container_name: staggers-clickhouse
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Lightweight Kubernetes controller for local development.
+  # The reconciler can target this cluster by pointing KUBECONFIG at ./.kubeconfig/kubeconfig.yaml.
+  k3s-server:
+    image: rancher/k3s:v1.31.1-k3s1
+    container_name: staggers-k3s
+    hostname: k3s-server
+    command: server --disable traefik --disable servicelb
+    privileged: true
+    environment:
+      K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
+      K3S_KUBECONFIG_MODE: "666"
+      K3S_TOKEN: localdev
+    volumes:
+      - k3s-server-data:/var/lib/rancher/k3s
+      - ./.kubeconfig:/output
+    ports:
+      - "6443:6443"
+    healthcheck:
+      test: ["CMD-SHELL", "kubectl get --raw=/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  k3s-server-data:
