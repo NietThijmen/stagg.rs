@@ -1,6 +1,9 @@
-# Staggers
+# Stagg.rs
 
 Server-side Google Tag Manager hosting platform.
+
+> **Note:** This is a work-in-progress. and is mostly a proof-of-concept if it's cheaper to self-host this than use Google's services.
+> We're not affiliated with Google or tagg.rs in any way.
 
 ## Architecture
 
