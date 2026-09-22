@@ -58,6 +58,7 @@ pnpm lint                    # typecheck every workspace (tsc --noEmit / svelte-
 pnpm test                    # Vitest unit tests
 pnpm test:watch
 pnpm dev                     # run all workspace dev tasks
+pnpm dev:apps                # run dashboard + api + reconciler + worker concurrently
 pnpm --filter @staggers/dashboard dev   # or api / cli / reconciler / worker
 pnpm api:dev                 # public API with reload
 pnpm cli:dev -- whoami       # run the CLI from source

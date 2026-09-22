@@ -119,6 +119,12 @@ pnpm --filter @staggers/reconciler dev
 pnpm --filter @staggers/worker dev
 ```
 
+Or run every app (except the CLI) at once:
+
+```bash
+pnpm dev:apps
+```
+
 ### 7. Stop infrastructure
 
 ```bash
