@@ -79,9 +79,7 @@ docker compose up -d
 Wait for k3s to write its kubeconfig:
 
 ```bash
-# macOS/Linux
 until [ -f .kubeconfig/kubeconfig.yaml ]; do sleep 1; done
-sed -i '' 's|https://127.0.0.1:6443|https://localhost:6443|' .kubeconfig/kubeconfig.yaml
 ```
 
 Then update `.env` to point at the generated kubeconfig:
