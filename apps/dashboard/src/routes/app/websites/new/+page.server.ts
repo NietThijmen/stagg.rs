@@ -1,13 +1,17 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import {
+  organizationIds,
+  requireAuthz,
+  requireOrganizationAccess,
+} from '$lib/server/authz';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-  await requireAuth(event);
+  const context = await requireAuthz(event);
 
-  // TODO: filter organizations by the current WorkOS user.
   const organizations = await prisma.organization.findMany({
+    where: { id: { in: organizationIds(context) } },
     orderBy: { name: 'asc' },
     take: 100,
   });
@@ -17,7 +21,6 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
   default: async (event) => {
-    await requireAuth(event);
     const form = await event.request.formData();
 
     const name = String(form.get('name') ?? '').trim();
@@ -27,6 +30,8 @@ export const actions: Actions = {
     if (!name) return fail(400, { error: 'Name is required' });
     if (!hostname) return fail(400, { error: 'Hostname is required' });
     if (!organizationId) return fail(400, { error: 'Organization is required' });
+
+    await requireOrganizationAccess(event, organizationId);
 
     const previewHostname = `preview-${crypto.randomUUID().slice(0, 8)}.saas.example`;
 

@@ -1,12 +1,12 @@
 import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { requireAuthz } from '$lib/server/authz';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-  const { user } = await requireAuth(event);
+  const context = await requireAuthz(event);
 
   const memberships = await prisma.membership.findMany({
-    where: { userId: user.id },
+    where: { userId: context.userId },
     include: { organization: true },
     orderBy: { organization: { name: 'asc' } },
   });

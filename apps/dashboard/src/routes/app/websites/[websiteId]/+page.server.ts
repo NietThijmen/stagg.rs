@@ -1,22 +1,22 @@
 import { error } from '@sveltejs/kit';
 import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { requireSiteAccess } from '$lib/server/authz';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-  await requireAuth(event);
+  const { site } = await requireSiteAccess(event, event.params.websiteId);
 
-  const site = await prisma.site.findUnique({
-    where: { id: event.params.websiteId },
+  const fullSite = await prisma.site.findUnique({
+    where: { id: site.id },
     include: {
       deployments: { orderBy: { startedAt: 'desc' }, take: 5 },
       destinations: true,
     },
   });
 
-  if (!site) {
+  if (!fullSite) {
     throw error(404, 'Website not found');
   }
 
-  return { site };
+  return { site: fullSite };
 };

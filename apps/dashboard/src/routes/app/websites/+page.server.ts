@@ -1,12 +1,12 @@
 import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { organizationIds, requireAuthz } from '$lib/server/authz';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-  await requireAuth(event);
+  const context = await requireAuthz(event);
 
-  // TODO: filter by the user's active WorkOS organization.
   const sites = await prisma.site.findMany({
+    where: { organizationId: { in: organizationIds(context) } },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });

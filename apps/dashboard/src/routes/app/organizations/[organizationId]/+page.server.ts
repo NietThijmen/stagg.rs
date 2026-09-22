@@ -1,53 +1,43 @@
 import { error, fail } from '@sveltejs/kit';
 import { prisma } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { isAdmin, requireOrganizationAccess } from '$lib/server/authz';
 import { workos } from '$lib/server/workos';
 import type { PageServerLoad, Actions } from './$types';
 
-const adminRoles = new Set(['organization_owner', 'organization_admin']);
-
 export const load: PageServerLoad = async (event) => {
-  const { user } = await requireAuth(event);
   const organizationId = event.params.organizationId;
 
-  const membership = await prisma.membership.findUnique({
-    where: { userId_organizationId: { userId: user.id, organizationId } },
-    include: { organization: true },
-  });
+  const { membership } = await requireOrganizationAccess(event, organizationId);
 
-  if (!membership) {
+  const [organization, members, invitations] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId } }),
+    prisma.membership.findMany({
+      where: { organizationId },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    workos.userManagement.listInvitations({ organizationId }),
+  ]);
+
+  if (!organization) {
     throw error(404, 'Organization not found');
   }
 
-    const [members, invitations] = await Promise.all([
-      prisma.membership.findMany({
-        where: { organizationId },
-        include: { user: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      workos.userManagement.listInvitations({ organizationId }),
-    ]);
-
-    return {
-      organization: membership.organization,
-      members,
-      invitations: invitations.data.filter((i) => i.state === 'pending'),
-      isAdmin: adminRoles.has(membership.role),
-    };
+  return {
+    organization,
+    members,
+    invitations: invitations.data.filter((i) => i.state === 'pending'),
+    isAdmin: isAdmin(membership.role),
+  };
 };
 
 export const actions: Actions = {
   invite: async (event) => {
-    const { user } = await requireAuth(event);
     const organizationId = event.params.organizationId;
 
-    const membership = await prisma.membership.findUnique({
-      where: { userId_organizationId: { userId: user.id, organizationId } },
+    const { context } = await requireOrganizationAccess(event, organizationId, {
+      admin: true,
     });
-
-    if (!membership || !adminRoles.has(membership.role)) {
-      return fail(403, { error: 'You do not have permission to invite members.' });
-    }
 
     const form = await event.request.formData();
     const email = String(form.get('email') ?? '').trim().toLowerCase();
@@ -60,7 +50,7 @@ export const actions: Actions = {
       await workos.userManagement.sendInvitation({
         email,
         organizationId,
-        inviterUserId: user.id,
+        inviterUserId: context.userId,
         expiresInDays: 7,
       });
     } catch (err) {

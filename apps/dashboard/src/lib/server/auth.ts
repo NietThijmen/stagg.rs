@@ -8,11 +8,3 @@ export async function requireAuth(event: RequestEvent) {
   }
   return { user };
 }
-
-export function requireOrganization(event: RequestEvent) {
-  const organizationId = event.url.searchParams.get('organizationId') ?? event.locals.organizationId;
-  if (!organizationId) {
-    throw new Error('Organization required');
-  }
-  return organizationId;
-}
