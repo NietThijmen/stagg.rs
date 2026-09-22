@@ -18,7 +18,7 @@
 		SheetTitle,
 		SheetTrigger,
 	} from '$lib/components/ui/sheet';
-	import { Plus, Menu, LogOut, Server, LayoutDashboard, Globe } from '@lucide/svelte';
+	import { Plus, Menu, LogOut, Server, LayoutDashboard, Globe, Building2 } from '@lucide/svelte';
 
 	let { data, children } = $props();
 
@@ -40,6 +40,8 @@
 	const nav = [
 		{ href: '/app/websites', label: 'Websites', icon: Globe },
 		{ href: '/app/websites/new', label: 'New website', icon: Plus },
+		{ href: '/app/organizations', label: 'Organizations', icon: Building2 },
+		{ href: '/app/organizations/new', label: 'New organization', icon: Plus },
 	];
 </script>
 

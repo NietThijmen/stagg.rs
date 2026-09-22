@@ -15,6 +15,7 @@
     "@staggers/config": "workspace:*",
     "@staggers/contracts": "workspace:*",
     "@staggers/db": "workspace:*",
+    "@workos-inc/node": "^10.13.0",
     "@workos/authkit-sveltekit": "^0.3.0"
   },
   "devDependencies": {
