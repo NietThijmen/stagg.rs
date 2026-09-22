@@ -3,6 +3,7 @@ import { prisma } from '@staggers/db';
 import {
   applyManifests,
   buildSiteManifests,
+  containerConfigSecretRef,
   createKubernetesClient,
   deleteManifests,
   siteManifestNames,
@@ -49,7 +50,12 @@ async function reconcileSite(siteId: string) {
 
   if (site.status === 'deleting') {
     console.log(`Deleting site ${site.id}`);
-    await deleteManifests(k8sClient, manifests);
+    const secretRef = containerConfigSecretRef({
+      siteId: site.id,
+      namespace: config.kubernetes.namespace,
+      secretName: site.containerConfigSecretName ?? undefined,
+    });
+    await deleteManifests(k8sClient, [...manifests, secretRef]);
     await prisma.site.delete({ where: { id: site.id } });
     return;
   }

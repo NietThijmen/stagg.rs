@@ -1,9 +1,120 @@
 import { loadConfig } from '@staggers/config';
-import { prisma } from '@staggers/db';
+import { prisma, type ProvisioningJob } from '@staggers/db';
+import { createGtmClient, type GtmClient } from '@staggers/gtm';
+import {
+  applyManifests,
+  buildContainerConfigSecret,
+  createKubernetesClient,
+  siteResourceName,
+} from '@staggers/kubernetes';
 import { initTelemetry } from '@staggers/telemetry';
 
 const config = loadConfig();
 initTelemetry({ ...config.otel, serviceName: config.otel.serviceName ?? 'staggers-worker' });
+
+const k8sClient = createKubernetesClient(config.kubernetes);
+
+let gtmClient: GtmClient | null = null;
+
+function getGtmClient(): GtmClient {
+  const { serviceAccountEmail, privateKey, accountId } = config.gtm;
+  if (!serviceAccountEmail || !privateKey) {
+    throw new Error(
+      'GTM is not configured: set GTM_SERVICE_ACCOUNT_EMAIL and GTM_SERVICE_ACCOUNT_PRIVATE_KEY',
+    );
+  }
+  if (!gtmClient) {
+    gtmClient = createGtmClient({
+      clientEmail: serviceAccountEmail,
+      privateKey,
+      accountId,
+    });
+  }
+  return gtmClient;
+}
+
+async function requireSite(job: ProvisioningJob) {
+  const siteId = job.siteId ?? (job.payload as { siteId?: string } | null)?.siteId;
+  if (!siteId) {
+    throw new Error(`${job.type} requires a siteId`);
+  }
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) {
+    throw new Error(`Site ${siteId} not found`);
+  }
+  return site;
+}
+
+async function createGtmContainer(job: ProvisioningJob) {
+  const site = await requireSite(job);
+
+  if (site.gtmAccountId && site.gtmContainerId) {
+    console.log(`Site ${site.id} already has GTM container ${site.gtmContainerId}`);
+    return;
+  }
+
+  const client = getGtmClient();
+  const accountId =
+    site.gtmAccountId ?? config.gtm.accountId ?? (await client.resolveAccountId());
+
+  const container = await client.createServerContainer({
+    accountId,
+    name: site.name,
+    domainName: [site.hostname],
+  });
+
+  await prisma.site.update({
+    where: { id: site.id },
+    data: {
+      gtmAccountId: accountId,
+      gtmContainerId: container.containerId,
+    },
+  });
+
+  console.log(
+    `Created GTM container ${container.publicId ?? container.containerId} for site ${site.id}`,
+  );
+}
+
+async function fetchContainerConfig(job: ProvisioningJob) {
+  const site = await requireSite(job);
+
+  if (!site.gtmAccountId || !site.gtmContainerId) {
+    throw new Error(`Site ${site.id} has no GTM container; run create_gtm_container first`);
+  }
+
+  const client = getGtmClient();
+  const containerConfig = await client.getContainerConfig(
+    site.gtmAccountId,
+    site.gtmContainerId,
+  );
+
+  const secretName = `${siteResourceName(site.id)}-config`;
+  await applyManifests(k8sClient, [
+    buildContainerConfigSecret({
+      siteId: site.id,
+      namespace: config.kubernetes.namespace,
+      secretName,
+      containerConfig,
+    }),
+  ]);
+
+  await prisma.site.update({
+    where: { id: site.id },
+    data: { containerConfigSecretName: secretName, status: 'pending' },
+  });
+
+  console.log(`Stored container config for site ${site.id} in secret ${secretName}`);
+}
+
+const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
+  create_gtm_container: createGtmContainer,
+  fetch_container_config: fetchContainerConfig,
+  provision_site: async (job) => {
+    await createGtmContainer(job);
+    await fetchContainerConfig(job);
+  },
+};
 
 async function processJob(jobId: string) {
   const job = await prisma.provisioningJob.findUnique({ where: { id: jobId } });
@@ -17,12 +128,12 @@ async function processJob(jobId: string) {
   });
 
   try {
-    // TODO: implement job handlers:
-    // - create_gtm_container
-    // - fetch_container_config
-    // - verify_dns
-    // - verify_certificate
-    // - test_event
+    const handler = handlers[job.type];
+    if (!handler) {
+      throw new Error(`Unknown job type: ${job.type}`);
+    }
+
+    await handler(job);
 
     await prisma.provisioningJob.update({
       where: { id: job.id },

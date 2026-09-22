@@ -1,6 +1,6 @@
 import { KubernetesObjectApi, type KubernetesObject } from '@kubernetes/client-node';
 import type { KubernetesClient } from './index.js';
-import { MANAGED_BY } from './manifests.js';
+import { FIELD_MANAGER } from './manifests.js';
 
 const APPLY_CONTENT_TYPE = 'application/apply-patch+yaml';
 
@@ -12,7 +12,7 @@ const APPLY_CONTENT_TYPE = 'application/apply-patch+yaml';
 export async function applyManifests(
   client: KubernetesClient,
   manifests: KubernetesObject[],
-  fieldManager: string = MANAGED_BY,
+  fieldManager: string = FIELD_MANAGER,
 ): Promise<KubernetesObject[]> {
   const api = KubernetesObjectApi.makeApiClient(client.kc);
   const applied: KubernetesObject[] = [];

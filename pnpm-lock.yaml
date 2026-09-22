@@ -124,6 +124,12 @@ importers:
       '@staggers/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@staggers/gtm':
+        specifier: workspace:*
+        version: link:../../packages/gtm
+      '@staggers/kubernetes':
+        specifier: workspace:*
+        version: link:../../packages/kubernetes
       '@staggers/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
@@ -177,6 +183,12 @@ importers:
       prisma:
         specifier: ^6.0.0
         version: 6.19.3(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/gtm:
+    devDependencies:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

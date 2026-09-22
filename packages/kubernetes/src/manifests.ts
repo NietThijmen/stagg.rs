@@ -8,6 +8,9 @@ export type SiteManifest = KubernetesObject & Record<string, unknown>;
 
 export const MANAGED_BY = 'staggers-reconciler';
 
+/** Shared server-side apply field manager for every platform-owned object. */
+export const FIELD_MANAGER = 'staggers-platform';
+
 export const SGTM_PORT = 8080;
 
 export interface SiteManifestInput {
@@ -71,7 +74,14 @@ export function buildSiteManifests(input: SiteManifestInput): SiteManifest[] {
   const manifests: SiteManifest[] = [];
 
   if (input.containerConfig !== undefined) {
-    manifests.push(containerConfigSecret({ input, name: secretName, labels }));
+    manifests.push(
+      buildContainerConfigSecret({
+        siteId: site.id,
+        namespace,
+        secretName,
+        containerConfig: input.containerConfig,
+      }),
+    );
   }
 
   manifests.push(
@@ -95,18 +105,40 @@ export function buildSiteManifests(input: SiteManifestInput): SiteManifest[] {
   return manifests;
 }
 
-function containerConfigSecret(args: {
-  input: SiteManifestInput;
-  name: string;
-  labels: Record<string, string>;
+/**
+ * Secret holding the GTM server container config consumed by the sGTM image.
+ * The worker writes this once a container has been provisioned.
+ */
+export function buildContainerConfigSecret(input: {
+  siteId: string;
+  namespace: string;
+  containerConfig: string;
+  secretName?: string;
 }): SiteManifest {
-  const { input, name, labels } = args;
+  const name = input.secretName ?? `${siteResourceName(input.siteId)}-config`;
   return {
     apiVersion: 'v1',
     kind: 'Secret',
-    metadata: { name, namespace: input.namespace, labels },
+    metadata: { name, namespace: input.namespace, labels: baseLabels(input.siteId) },
     type: 'Opaque',
-    stringData: { 'container-config': input.containerConfig ?? '' },
+    stringData: { 'container-config': input.containerConfig },
+  };
+}
+
+/**
+ * Header-only reference to the container config Secret, used to delete it
+ * without needing to know (or overwrite) its contents.
+ */
+export function containerConfigSecretRef(input: {
+  siteId: string;
+  namespace: string;
+  secretName?: string;
+}): SiteManifest {
+  const name = input.secretName ?? `${siteResourceName(input.siteId)}-config`;
+  return {
+    apiVersion: 'v1',
+    kind: 'Secret',
+    metadata: { name, namespace: input.namespace },
   };
 }
 

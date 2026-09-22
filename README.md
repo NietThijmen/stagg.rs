@@ -44,6 +44,7 @@ packages/
   contracts/        Shared Zod schemas and types
   config/           Environment config validation
   db/               Prisma ORM + PostgreSQL client
+  gtm/              Google Tag Manager API client
   clickhouse/       ClickHouse client + derived schemas
   kubernetes/       Kubernetes client helpers
   telemetry/        OpenTelemetry SDK setup
@@ -141,7 +142,7 @@ kubectl apply -f k8s/data-stores/
 ## Key TODOs before production
 
 - [x] Implement Kubernetes manifest generation in the reconciler.
-- [ ] Integrate Google Tag Manager API for container creation.
+- [x] Integrate Google Tag Manager API for container creation.
 - [ ] Wire WorkOS organization membership to site authorization.
 - [ ] Add certificate management (cert-manager) and DNS automation.
 - [ ] Add egress destination management UI/API.
