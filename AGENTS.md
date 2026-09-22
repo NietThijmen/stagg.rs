@@ -70,7 +70,9 @@ pnpm db:studio
 
 Local infrastructure: `docker compose up -d` (Postgres on 5433, ClickHouse on
 8123/9000, k3s). k3s writes a kubeconfig to `./.kubeconfig/kubeconfig.yaml`
-pointing the reconciler at the local cluster.
+pointing the reconciler at the local cluster. The dashboard loads env from the
+repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
+`tsx` in their `dev` scripts so `pnpm dev:apps` picks up the same values.
 
 ## Conventions
 
