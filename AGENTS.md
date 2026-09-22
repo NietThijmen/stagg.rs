@@ -159,9 +159,12 @@ repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
   `downstream_requests` for timeseries/summary/recent traces, `otel_traces` for
   trace detail. `apps/dashboard/src/lib/server/analytics.ts` and the API both
   consume it.
-- `packages/clickhouse/src/schema.ts` defines the derived product tables;
-  `downstream_requests` must be populated from `otel_traces` (e.g. a
-  materialized view) for charts to show data.
+- `packages/clickhouse/src/schema.ts` defines the derived product tables
+  (`downstream_requests`, `site_health_hourly`). `createAnalyticsService` runs
+  `initializeDerivedTables` lazily on first query (idempotent, one statement at
+  a time — ClickHouse's HTTP interface rejects multi-statement requests), so the
+  dashboard/API create the tables automatically. Populate `downstream_requests`
+  from `otel_traces` (e.g. a materialized view) for charts to show data.
 
 ## Environment
 

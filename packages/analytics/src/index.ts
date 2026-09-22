@@ -3,6 +3,7 @@ import {
   type ClickHouseClient,
   type ClickHouseConfig,
 } from '@staggers/clickhouse';
+import { initializeDerivedTables } from '@staggers/clickhouse/schema';
 
 export interface AnalyticsPoint {
   bucket: string;
@@ -52,11 +53,28 @@ export function createAnalyticsService(
   config: ClickHouseConfig,
   client: ClickHouseClient = createClickHouseClient(config),
 ): AnalyticsService {
+  // Bootstrap the product tables on first query. DDL is idempotent and
+  // best-effort: a read-only ClickHouse user should still be able to query.
+  let schemaReady: Promise<void> | null = null;
+
+  function ensureSchema(): Promise<void> {
+    if (!schemaReady) {
+      schemaReady = initializeDerivedTables(client).catch((error: unknown) => {
+        console.warn(
+          '[analytics] could not initialize derived tables:',
+          error instanceof Error ? error.message : error,
+        );
+      });
+    }
+    return schemaReady;
+  }
+
   async function getSiteAnalytics(
     siteId: string,
     from: Date,
     to: Date,
   ): Promise<SiteAnalytics> {
+    await ensureSchema();
     const result = await client.query({
       query: `
         SELECT
@@ -109,6 +127,7 @@ export function createAnalyticsService(
   }
 
   async function listRecentTraces(siteId: string, limit = 10): Promise<RecentTrace[]> {
+    await ensureSchema();
     const result = await client.query({
       query: `
         SELECT
@@ -186,6 +205,7 @@ export function createAnalyticsService(
   }
 
   async function traceBelongsToSite(siteId: string, traceId: string): Promise<boolean> {
+    await ensureSchema();
     const result = await client.query({
       query: `
         SELECT 1 AS found
