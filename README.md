@@ -41,13 +41,12 @@ apps/
   api/              Public REST API (Hono + OpenAPI)
   cli/              `staggers` command line client
   reconciler/       Kubernetes desired-state reconciler
-  worker/           Provisioning and GTM API jobs
+  worker/           Provisioning jobs (container config, egress)
 packages/
   contracts/        Shared Zod schemas and types
   config/           Environment config validation
   db/               Prisma ORM + PostgreSQL client
   analytics/        ClickHouse analytics queries
-  gtm/              Google Tag Manager API client
   clickhouse/       ClickHouse client + derived schemas
   kubernetes/       Kubernetes client helpers
   telemetry/        OpenTelemetry SDK setup
@@ -159,7 +158,7 @@ export STAGGERS_API_URL=http://localhost:4000
 export STAGGERS_API_TOKEN=sk_...
 node apps/cli/dist/index.js whoami
 node apps/cli/dist/index.js sites list
-node apps/cli/dist/index.js sites create --organization org_... --name "My site" --hostname gtm.example.com
+node apps/cli/dist/index.js sites create --organization org_... --name "My site" --hostname gtm.example.com --container-config-file ./container-config.json
 node apps/cli/dist/index.js analytics summary <siteId>
 ```
 
@@ -191,7 +190,7 @@ kubectl apply -f k8s/data-stores/
 ## Key TODOs before production
 
 - [x] Implement Kubernetes manifest generation in the reconciler.
-- [x] Integrate Google Tag Manager API for container creation.
+- [ ] Integrate Google Tag Manager API for container creation (future: via WorkOS pipes).
 - [x] Wire WorkOS organization membership to site authorization.
 - [x] Add certificate management (cert-manager) and DNS automation.
 - [x] Add egress destination management UI/API.

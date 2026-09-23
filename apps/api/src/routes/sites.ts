@@ -183,6 +183,7 @@ export function createSitesRouter() {
         organizationId: body.organizationId,
         name: body.name,
         hostname: body.hostname,
+        containerConfig: body.containerConfig,
         previewHostname: `preview-${crypto.randomUUID().slice(0, 8)}.${deps.config.platformDomain}`,
         desiredReplicas: body.desiredReplicas,
         minReplicas: body.minReplicas,
@@ -226,6 +227,7 @@ export function createSitesRouter() {
       data: {
         name: body.name,
         hostname: body.hostname,
+        containerConfig: body.containerConfig,
         desiredReplicas: body.desiredReplicas,
         minReplicas: body.minReplicas,
         maxReplicas: body.maxReplicas,

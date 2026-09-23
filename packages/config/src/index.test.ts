@@ -13,7 +13,6 @@ describe('loadConfig', () => {
     expect(config.kubernetes.namespace).toBe('customer-workloads');
     expect(config.kubernetes.edgeNamespace).toBe('edge-system');
     expect(config.clickhouse.database).toBe('otel');
-    expect(config.gtm.accountId).toBeUndefined();
   });
 
   it('reads overrides from the environment', () => {
@@ -23,13 +22,13 @@ describe('loadConfig', () => {
       NODE_ENV: 'production',
       PORT: '8080',
       K8S_NAMESPACE: 'sites',
-      GTM_ACCOUNT_ID: '123456',
+      K8S_EDGE_NAMESPACE: 'edge',
     });
 
     expect(config.nodeEnv).toBe('production');
     expect(config.port).toBe(8080);
     expect(config.kubernetes.namespace).toBe('sites');
-    expect(config.gtm.accountId).toBe('123456');
+    expect(config.kubernetes.edgeNamespace).toBe('edge');
   });
 
   it('requires a database url', () => {

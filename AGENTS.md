@@ -18,7 +18,7 @@ SvelteKit dashboard (WorkOS auth, sites, analytics, destinations)
         │
 Control plane (Node.js/TypeScript)
   reconciler  – renders + applies per-site Kubernetes manifests
-  worker      – GTM provisioning jobs, egress allowlist sync
+  worker      – container-config provisioning jobs, egress allowlist sync
   config/db   – shared packages
         │
 Data plane (Kubernetes)
@@ -35,13 +35,12 @@ apps/
   api/          Public REST API (Hono + zod-openapi), WorkOS bearer auth
   cli/          `staggers` CLI that talks to the API
   reconciler/   Desired-state reconciler (site manifests)
-  worker/       Provisioning job runner (GTM, egress)
+  worker/       Provisioning job runner (container config, egress)
 packages/
   contracts/    Shared Zod schemas/types
   config/       Env config validation (Zod)
   db/           Prisma client + PostgreSQL
   analytics/    ClickHouse analytics query service
-  gtm/          Google Tag Manager API client (service-account auth)
   clickhouse/   ClickHouse client + derived table schemas
   kubernetes/   Manifest builders, server-side apply, egress sync
   telemetry/    OpenTelemetry SDK setup
@@ -90,15 +89,13 @@ repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
 
 ### Provisioning flow
 
-1. Dashboard creates a `Site` + a `provisioning_jobs` row (`provision_site`).
+1. Dashboard creates a `Site` (with the user-supplied `containerConfig`) + a
+   `provisioning_jobs` row (`provision_site`).
 2. Worker (`apps/worker/src/index.ts`) handles job types:
-   - `create_gtm_container` – creates a GTM **server** container
-     (`usageContext: ["server"]`), stores `gtmAccountId`/`gtmContainerId`.
-   - `fetch_container_config` – fetches the server container config via
-     `containers.snippet`, writes the `${siteResourceName(id)}-config` Secret,
-     sets `containerConfigSecretName`, and sets site status to `pending`.
+   - `provision_site` – writes the site's `containerConfig` to the
+     `${siteResourceName(id)}-config` Secret, sets `containerConfigSecretName`,
+     and sets site status to `pending`.
    - `sync_egress_config` – rewrites the egress allowlist and rolls egress.
-   - `provision_site` – chains `create_gtm_container` + `fetch_container_config`.
 3. Reconciler (`apps/reconciler/src/index.ts`) polls sites in
    `pending|provisioning|degraded|deleting`, renders manifests
    (`buildSiteManifests`), applies them, and records readiness.
@@ -178,8 +175,6 @@ See `.env.example`. Notable variables:
 - `PLATFORM_DOMAIN` (default `saas.example`), `SGTM_IMAGE`
 - `API_PORT` (default `4000`, used by `apps/api`)
 - `STAGGERS_API_URL`, `STAGGERS_API_TOKEN` (used by `apps/cli`)
-- `GTM_SERVICE_ACCOUNT_EMAIL`, `GTM_SERVICE_ACCOUNT_PRIVATE_KEY`
-  (literal `\n` escapes accepted), `GTM_ACCOUNT_ID` (optional)
 - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`
 
 ## Gotchas
@@ -197,8 +192,9 @@ See `.env.example`. Notable variables:
   `ERR_PNPM_IGNORED_BUILDS`.
 - **Prisma migrations are gitignored** (`prisma/migrations/`). Be deliberate
   when changing `packages/db/prisma/schema.prisma`; migrations are not tracked.
-- **GTM service account must be added as a user** of the GTM account, otherwise
-  API calls 403.
+- **Container config is user-supplied.** Sites are created with a raw GTM server
+  container config; there is no GTM API/service-account integration yet (a
+  future contribution is expected to wire this through WorkOS pipes).
 - The example `k8s/sgtm/03-example-deployment.yaml` is a template; the
   reconciler generates real per-site manifests.
 - `k8s/` requires external controllers (Envoy Gateway, Gateway API CRDs,

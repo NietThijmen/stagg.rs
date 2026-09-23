@@ -12,12 +12,7 @@ const jobColumns: TableColumn[] = [
   { key: 'createdAt', header: 'CREATED' },
 ];
 
-const jobTypes = [
-  'create_gtm_container',
-  'fetch_container_config',
-  'sync_egress_config',
-  'provision_site',
-];
+const jobTypes = ['sync_egress_config', 'provision_site'];
 
 function renderJobs(jobs: Job[], json: boolean): void {
   if (json) {

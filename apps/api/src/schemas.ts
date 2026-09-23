@@ -36,8 +36,7 @@ export const SiteSchema = z
     desiredReplicas: z.number().int(),
     minReplicas: z.number().int(),
     maxReplicas: z.number().int(),
-    gtmAccountId: z.string().nullable(),
-    gtmContainerId: z.string().nullable(),
+    containerConfig: z.string().nullable(),
     containerConfigSecretName: z.string().nullable(),
     createdAt: isoDate,
     updatedAt: isoDate,
@@ -49,6 +48,7 @@ export const CreateSiteSchema = z
     organizationId: z.string().min(1),
     name: z.string().min(1).max(255),
     hostname: z.string().min(1).max(255),
+    containerConfig: z.string().min(1),
     desiredReplicas: z.number().int().min(1).max(100).optional(),
     minReplicas: z.number().int().min(1).max(100).optional(),
     maxReplicas: z.number().int().min(1).max(100).optional(),
@@ -59,6 +59,7 @@ export const UpdateSiteSchema = z
   .object({
     name: z.string().min(1).max(255).optional(),
     hostname: z.string().min(1).max(255).optional(),
+    containerConfig: z.string().min(1).optional(),
     desiredReplicas: z.number().int().min(1).max(100).optional(),
     minReplicas: z.number().int().min(1).max(100).optional(),
     maxReplicas: z.number().int().min(1).max(100).optional(),
@@ -96,8 +97,6 @@ export const UpdateDestinationSchema = CreateDestinationSchema.partial().openapi
 );
 
 export const JobTypeSchema = z.enum([
-  'create_gtm_container',
-  'fetch_container_config',
   'sync_egress_config',
   'provision_site',
 ]);

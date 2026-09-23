@@ -16,7 +16,8 @@ export interface Site {
   desiredReplicas: number;
   minReplicas: number;
   maxReplicas: number;
-  gtmContainerId: string | null;
+  containerConfig: string | null;
+  containerConfigSecretName: string | null;
   createdAt: string;
   updatedAt: string;
 }

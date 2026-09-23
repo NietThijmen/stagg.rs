@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { addGlobalOptions, resolveContext } from '../context.js';
 import { printJson, printTable, type TableColumn } from '../output.js';
@@ -15,6 +16,7 @@ interface SiteBody {
   organizationId?: string;
   name?: string;
   hostname?: string;
+  containerConfig?: string;
   desiredReplicas?: number;
   minReplicas?: number;
   maxReplicas?: number;
@@ -26,6 +28,7 @@ function buildBody(options: Record<string, unknown>): SiteBody {
   if (options.organization !== undefined) body.organizationId = String(options.organization);
   if (options.name !== undefined) body.name = String(options.name);
   if (options.hostname !== undefined) body.hostname = String(options.hostname);
+  if (options.containerConfig !== undefined) body.containerConfig = String(options.containerConfig);
   if (options.desiredReplicas !== undefined) body.desiredReplicas = Number(options.desiredReplicas);
   if (options.minReplicas !== undefined) body.minReplicas = Number(options.minReplicas);
   if (options.maxReplicas !== undefined) body.maxReplicas = Number(options.maxReplicas);
@@ -74,12 +77,18 @@ export function registerSites(program: Command): void {
       .requiredOption('--organization <id>', 'Organization ID')
       .requiredOption('--name <name>', 'Site name')
       .requiredOption('--hostname <hostname>', 'Site hostname')
+      .requiredOption(
+        '--container-config-file <path>',
+        'Path to the GTM server container config JSON',
+      )
       .option('--desired-replicas <n>', 'Desired replicas', (value) => Number.parseInt(value, 10))
       .option('--min-replicas <n>', 'Minimum replicas', (value) => Number.parseInt(value, 10))
       .option('--max-replicas <n>', 'Maximum replicas', (value) => Number.parseInt(value, 10)),
   ).action(async (options: Record<string, unknown>, command: Command) => {
     const { client, json } = resolveContext(command);
-    const site = await client.post<Site>('/v1/sites', buildBody(options));
+    const body = buildBody(options);
+    body.containerConfig = await readFile(String(options.containerConfigFile), 'utf8');
+    const site = await client.post<Site>('/v1/sites', body);
     renderSites([site], json);
   });
 

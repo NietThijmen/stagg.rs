@@ -1,6 +1,5 @@
 import { loadConfig } from '@staggers/config';
 import { prisma, type ProvisioningJob } from '@staggers/db';
-import { createGtmClient, type GtmClient } from '@staggers/gtm';
 import {
   applyManifests,
   buildContainerConfigSecret,
@@ -15,25 +14,6 @@ initTelemetry({ ...config.otel, serviceName: config.otel.serviceName ?? 'stagger
 
 const k8sClient = createKubernetesClient(config.kubernetes);
 
-let gtmClient: GtmClient | null = null;
-
-function getGtmClient(): GtmClient {
-  const { serviceAccountEmail, privateKey, accountId } = config.gtm;
-  if (!serviceAccountEmail || !privateKey) {
-    throw new Error(
-      'GTM is not configured: set GTM_SERVICE_ACCOUNT_EMAIL and GTM_SERVICE_ACCOUNT_PRIVATE_KEY',
-    );
-  }
-  if (!gtmClient) {
-    gtmClient = createGtmClient({
-      clientEmail: serviceAccountEmail,
-      privateKey,
-      accountId,
-    });
-  }
-  return gtmClient;
-}
-
 async function requireSite(job: ProvisioningJob) {
   const siteId = job.siteId ?? (job.payload as { siteId?: string } | null)?.siteId;
   if (!siteId) {
@@ -46,49 +26,14 @@ async function requireSite(job: ProvisioningJob) {
   return site;
 }
 
-async function createGtmContainer(job: ProvisioningJob) {
+async function provisionSite(job: ProvisioningJob) {
   const site = await requireSite(job);
 
-  if (site.gtmAccountId && site.gtmContainerId) {
-    console.log(`Site ${site.id} already has GTM container ${site.gtmContainerId}`);
-    return;
+  if (!site.containerConfig) {
+    throw new Error(
+      `Site ${site.id} has no container config; provide one when creating the site`,
+    );
   }
-
-  const client = getGtmClient();
-  const accountId =
-    site.gtmAccountId ?? config.gtm.accountId ?? (await client.resolveAccountId());
-
-  const container = await client.createServerContainer({
-    accountId,
-    name: site.name,
-    domainName: [site.hostname],
-  });
-
-  await prisma.site.update({
-    where: { id: site.id },
-    data: {
-      gtmAccountId: accountId,
-      gtmContainerId: container.containerId,
-    },
-  });
-
-  console.log(
-    `Created GTM container ${container.publicId ?? container.containerId} for site ${site.id}`,
-  );
-}
-
-async function fetchContainerConfig(job: ProvisioningJob) {
-  const site = await requireSite(job);
-
-  if (!site.gtmAccountId || !site.gtmContainerId) {
-    throw new Error(`Site ${site.id} has no GTM container; run create_gtm_container first`);
-  }
-
-  const client = getGtmClient();
-  const containerConfig = await client.getContainerConfig(
-    site.gtmAccountId,
-    site.gtmContainerId,
-  );
 
   const secretName = `${siteResourceName(site.id)}-config`;
   await applyManifests(k8sClient, [
@@ -96,7 +41,7 @@ async function fetchContainerConfig(job: ProvisioningJob) {
       siteId: site.id,
       namespace: config.kubernetes.namespace,
       secretName,
-      containerConfig,
+      containerConfig: site.containerConfig,
     }),
   ]);
 
@@ -109,8 +54,6 @@ async function fetchContainerConfig(job: ProvisioningJob) {
 }
 
 const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
-  create_gtm_container: createGtmContainer,
-  fetch_container_config: fetchContainerConfig,
   sync_egress_config: async () => {
     const destinations = await prisma.downstreamDestination.findMany({
       where: { enabled: true },
@@ -125,10 +68,7 @@ const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
       `Synced egress allowlist with ${destinations.length} customer destination(s)`,
     );
   },
-  provision_site: async (job) => {
-    await createGtmContainer(job);
-    await fetchContainerConfig(job);
-  },
+  provision_site: provisionSite,
 };
 
 async function processJob(jobId: string) {
@@ -154,12 +94,16 @@ async function processJob(jobId: string) {
       where: { id: job.id },
       data: { status: 'completed', completedAt: new Date() },
     });
+
+    console.info(`Job ${job.id} completed successfully`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await prisma.provisioningJob.update({
       where: { id: job.id },
       data: { status: 'failed', error: message, completedAt: new Date() },
     });
+
+    console.error(`Job ${job.id} failed:`, message);
   }
 }
 

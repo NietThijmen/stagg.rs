@@ -63,6 +63,22 @@
 				</div>
 
 				<div class="flex flex-col gap-2">
+					<Label for="containerConfig">Container config</Label>
+					<textarea
+						id="containerConfig"
+						name="containerConfig"
+						required
+						rows="6"
+						dir="ltr"
+						placeholder="Paste the GTM server container config JSON"
+						class="dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 w-full min-w-0 rounded-md border bg-transparent px-2.5 py-1 font-mono text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm"
+					></textarea>
+					<p class="text-xs text-muted-foreground">
+						Paste the server container config from your GTM container.
+					</p>
+				</div>
+
+				<div class="flex flex-col gap-2">
 					<Label for="organizationId">Organization</Label>
 					<Select type="single" name="organizationId" bind:value={selectedOrg}>
 						<SelectTrigger id="organizationId">

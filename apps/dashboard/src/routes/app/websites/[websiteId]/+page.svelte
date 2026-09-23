@@ -146,8 +146,10 @@
 					<span class="font-medium">{site.previewHostname}</span>
 				</div>
 				<div class="grid grid-cols-2 gap-2">
-					<span class="text-muted-foreground">Container ID</span>
-					<span class="font-medium">{site.gtmContainerId ?? 'Pending'}</span>
+					<span class="text-muted-foreground">Container config</span>
+					<span class="font-medium">
+						{site.containerConfigSecretName ? 'Configured' : 'Pending'}
+					</span>
 				</div>
 			</CardContent>
 		</Card>

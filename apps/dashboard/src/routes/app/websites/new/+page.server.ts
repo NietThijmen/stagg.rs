@@ -26,10 +26,12 @@ export const actions: Actions = {
     const name = String(form.get('name') ?? '').trim();
     const hostname = String(form.get('hostname') ?? '').trim().toLowerCase();
     const organizationId = String(form.get('organizationId') ?? '').trim();
+    const containerConfig = String(form.get('containerConfig') ?? '').trim();
 
     if (!name) return fail(400, { error: 'Name is required' });
     if (!hostname) return fail(400, { error: 'Hostname is required' });
     if (!organizationId) return fail(400, { error: 'Organization is required' });
+    if (!containerConfig) return fail(400, { error: 'Container config is required' });
 
     await requireOrganizationAccess(event, organizationId);
 
@@ -46,6 +48,7 @@ export const actions: Actions = {
         name,
         hostname,
         previewHostname,
+        containerConfig,
         status: 'pending',
       },
     });

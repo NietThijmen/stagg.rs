@@ -12,7 +12,6 @@
   "dependencies": {
     "@staggers/config": "workspace:*",
     "@staggers/db": "workspace:*",
-    "@staggers/gtm": "workspace:*",
     "@staggers/kubernetes": "workspace:*",
     "@staggers/telemetry": "workspace:*"
   },

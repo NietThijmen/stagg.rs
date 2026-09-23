@@ -161,11 +161,7 @@
           "maxReplicas": {
             "type": "integer"
           },
-          "gtmAccountId": {
-            "type": "string",
-            "nullable": true
-          },
-          "gtmContainerId": {
+          "containerConfig": {
             "type": "string",
             "nullable": true
           },
@@ -192,8 +188,7 @@
           "desiredReplicas",
           "minReplicas",
           "maxReplicas",
-          "gtmAccountId",
-          "gtmContainerId",
+          "containerConfig",
           "containerConfigSecretName",
           "createdAt",
           "updatedAt"
@@ -216,6 +211,10 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "containerConfig": {
+            "type": "string",
+            "minLength": 1
+          },
           "desiredReplicas": {
             "type": "integer",
             "minimum": 1,
@@ -235,7 +234,8 @@
         "required": [
           "organizationId",
           "name",
-          "hostname"
+          "hostname",
+          "containerConfig"
         ]
       },
       "UpdateSite": {
@@ -250,6 +250,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "containerConfig": {
+            "type": "string",
+            "minLength": 1
           },
           "desiredReplicas": {
             "type": "integer",
@@ -468,8 +472,6 @@
           "type": {
             "type": "string",
             "enum": [
-              "create_gtm_container",
-              "fetch_container_config",
               "sync_egress_config",
               "provision_site"
             ]

@@ -17,8 +17,7 @@ export const site = z.object({
   name: z.string().min(1).max(255),
   hostname: z.string().min(1).max(255),
   previewHostname: z.string().min(1).max(255),
-  gtmAccountId: z.string().min(1).max(255).optional(),
-  gtmContainerId: z.string().min(1).max(255).optional(),
+  containerConfig: z.string().min(1).optional(),
   containerConfigSecretName: z.string().min(1).max(255).optional(),
   status: siteStatus,
   desiredReplicas: z.number().int().min(1).max(100).default(3),
@@ -38,6 +37,7 @@ export const createSiteInput = site
     minReplicas: true,
     maxReplicas: true,
   })
+  .extend({ containerConfig: z.string().min(1) })
   .partial({
     desiredReplicas: true,
     minReplicas: true,
@@ -49,6 +49,7 @@ export const updateSiteInput = site
   .pick({
     name: true,
     hostname: true,
+    containerConfig: true,
     desiredReplicas: true,
     minReplicas: true,
     maxReplicas: true,

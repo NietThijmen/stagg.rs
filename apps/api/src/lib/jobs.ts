@@ -1,11 +1,6 @@
 import type { Prisma, PrismaClient } from '@staggers/db';
 
-export const jobTypes = [
-  'create_gtm_container',
-  'fetch_container_config',
-  'sync_egress_config',
-  'provision_site',
-] as const;
+export const jobTypes = ['sync_egress_config', 'provision_site'] as const;
 
 export type JobType = (typeof jobTypes)[number];
 
