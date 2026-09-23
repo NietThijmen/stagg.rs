@@ -85,7 +85,7 @@ describe('buildSiteManifests', () => {
     });
     expect(container.env).toContainEqual({
       name: 'HTTPS_PROXY',
-      value: 'http://egress-envoy.edge-system.svc.cluster.local:8080',
+      value: `http://${siteResourceName(input.site.id)}-egress.customer-workloads.svc.cluster.local:8080`,
     });
     expect(container.env).toContainEqual({
       name: 'PREVIEW_SERVER_URL',

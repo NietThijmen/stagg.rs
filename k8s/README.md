@@ -14,7 +14,7 @@ Envoy Gateway (edge-system) — TLS termination, host routing, OTEL traces
 Per-site sGTM Deployment (customer-workloads)
     │
     ▼
-Envoy Egress Proxy (edge-system) — allowlisted forward proxy
+Per-site Egress Proxy (customer-workloads) — allowlisted forward proxy
     │
     ▼
 Downstream destinations (Google Analytics, Ads, etc.)
@@ -44,7 +44,6 @@ kubectl apply -f k8s/namespaces/
 kubectl apply -f k8s/envoy-ingress/
 kubectl apply -f k8s/cert-manager/
 kubectl apply -f k8s/dns/
-kubectl apply -f k8s/egress/
 kubectl apply -f k8s/observability/
 ```
 
@@ -73,27 +72,30 @@ kubectl apply -f k8s/data-stores/
 - A unique Kubernetes `Deployment`, `Service`, `ServiceAccount`, `HPA`, and `NetworkPolicy`.
 - A `Secret` containing the GTM `CONTAINER_CONFIG`.
 - An `HTTPRoute` exposing the site on its custom hostname.
-- `HTTP_PROXY` / `HTTPS_PROXY` pointing to `egress-envoy.edge-system:8080`.
+- `HTTP_PROXY` / `HTTPS_PROXY` pointing at its own egress proxy (`<site>-egress`).
 
 ## Egress proxy
 
-`egress-envoy` is an HTTP/HTTPS forward proxy with:
+Each site gets its own Envoy HTTP/HTTPS forward proxy, co-located in
+`customer-workloads`, with:
 
-- Destination allowlist enforced via Lua.
-- OpenTelemetry access logging and tracing.
+- Destination allowlist enforced via Lua (`DEFAULT_EGRESS_HOSTS` plus that
+  site's enabled `downstream_destinations`).
+- OpenTelemetry access logging and tracing with `saas.site_id` baked into the
+  Envoy config, so egress telemetry is attributed per customer deployment.
 - Dynamic forward proxy for arbitrary allowed hosts.
 
-To add a customer-specific destination, use the dashboard's website page. The
-worker regenerates the allowlist between the `BEGIN/END MANAGED DESTINATIONS`
-markers in `k8s/egress/05-egress-config.yaml` from the `downstream_destinations`
-table and rolls the egress deployment. You can still edit the file by hand for
-platform-wide defaults.
+The reconciler renders the per-site `ConfigMap`, `Deployment`, `Service` and
+`NetworkPolicy` (`buildEgressManifests` in `packages/kubernetes`). To add a
+customer-specific destination, use the dashboard's website page; the worker
+re-applies that site's egress config and the `staggers.io/egress-config-hash`
+annotation rolls the proxy.
 
 ## Network isolation
 
 - sGTM pods can only receive traffic from `edge-system`.
-- sGTM pods can only send outbound traffic to `egress-envoy` and the OTEL collector.
-- Egress Envoy is the only workload allowed unrestricted outbound access.
+- sGTM pods can only send outbound traffic to their own egress proxy and the OTEL collector.
+- Each site's egress proxy is the only workload for that site allowed unrestricted outbound access.
 
 ## Observability
 

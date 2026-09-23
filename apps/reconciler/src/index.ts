@@ -2,11 +2,13 @@ import { loadConfig } from '@staggers/config';
 import { prisma } from '@staggers/db';
 import {
   applyManifests,
+  buildEgressManifests,
   buildSiteManifests,
   containerConfigSecretRef,
   createKubernetesClient,
   deleteManifests,
   siteManifestNames,
+  siteResourceName,
   type SiteManifestInput,
 } from '@staggers/kubernetes';
 import { initTelemetry } from '@staggers/telemetry';
@@ -45,7 +47,7 @@ async function reconcileSite(siteId: string) {
   console.log(`Reconciling site ${site.id} (${site.hostname})`);
 
   const input = toManifestInput(site);
-  const manifests = buildSiteManifests(input);
+  const manifests = [...buildSiteManifests(input), ...(await buildSiteEgress(site.id))];
   const { name } = siteManifestNames(input);
 
   if (site.status === 'deleting') {
@@ -80,6 +82,19 @@ async function reconcileSite(siteId: string) {
   });
 
   await recordDeployment(site.id, ready ? 'ready' : 'in_progress');
+}
+
+async function buildSiteEgress(siteId: string) {
+  const destinations = await prisma.downstreamDestination.findMany({
+    where: { siteId, enabled: true },
+  });
+
+  return buildEgressManifests({
+    siteId,
+    namespace: config.kubernetes.namespace,
+    serviceAccountName: siteResourceName(siteId),
+    hosts: destinations.map((destination) => destination.host),
+  });
 }
 
 async function isDeploymentReady(name: string, namespace: string): Promise<boolean> {

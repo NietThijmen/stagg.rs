@@ -54,7 +54,6 @@ k8s/
   namespaces/       Cluster namespaces
   envoy-ingress/    Envoy Gateway manifests
   sgtm/             Example per-site sGTM manifests
-  egress/           Envoy egress proxy
   observability/    OTEL Collector
   data-stores/      PostgreSQL + ClickHouse manifests
 ```

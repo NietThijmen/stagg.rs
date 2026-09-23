@@ -9,7 +9,5 @@ resources:
   - dns/10-external-dns.yaml
   - sgtm/03-example-deployment.yaml
   - sgtm/04-network-policy.yaml
-  - egress/05-egress-config.yaml
-  - egress/06-egress-deployment.yaml
   - observability/07-otel-collector.yaml
   - observability/08-otel-collector-deployment.yaml

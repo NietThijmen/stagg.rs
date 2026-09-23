@@ -67,11 +67,11 @@ spec:
                   key: container-config
             - name: PREVIEW_SERVER_URL
               value: "https://preview-site-example.saas.example"
-            # Route all outbound requests through the platform egress proxy.
+            # Route all outbound requests through this site's egress proxy.
             - name: HTTP_PROXY
-              value: "http://egress-envoy.edge-system.svc.cluster.local:8080"
+              value: "http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080"
             - name: HTTPS_PROXY
-              value: "http://egress-envoy.edge-system.svc.cluster.local:8080"
+              value: "http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080"
             - name: NO_PROXY
               value: "localhost,127.0.0.1,*.svc.cluster.local"
           resources:

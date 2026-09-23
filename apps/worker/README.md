@@ -6,7 +6,9 @@ Provisioning job runner for Stagg.rs.
 
 - Polls Postgres for pending `provisioning_jobs` rows.
 - Handles `provision_site` jobs by storing the site's container config in a Kubernetes Secret and setting the site status to `pending` for the reconciler.
-- Handles `sync_egress_config` jobs by rewriting the egress allowlist ConfigMap with default hosts plus enabled downstream destinations, then rolling the egress Envoy Deployment.
+- Handles `sync_egress_config` jobs by re-applying a site's per-site egress
+  ConfigMap/Deployment with default hosts plus that site's enabled downstream
+  destinations (the config hash annotation rolls the proxy).
 - Updates job status to `in_progress`, `completed`, or `failed` with error details.
 
 ## Tech stack
@@ -32,8 +34,7 @@ pnpm lint                 # typecheck
 ## Environment variables
 
 - `KUBECONFIG` — path to kubeconfig file; omit to use in-cluster config
-- `K8S_NAMESPACE` — namespace for site Secrets (default `customer-workloads`)
-- `K8S_EDGE_NAMESPACE` — namespace for egress resources (default `edge-system`)
+- `K8S_NAMESPACE` — namespace for site Secrets and egress resources (default `customer-workloads`)
 - `DATABASE_URL`
 - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`
 
@@ -42,9 +43,9 @@ pnpm lint                 # typecheck
 | Type                | Description                                                                 |
 |---------------------|------------------------------------------------------------------------------|
 | `provision_site`    | Writes the site's `containerConfig` to a Secret named `{resourceName}-config`. |
-| `sync_egress_config` | Rewrites the egress allowlist and rolls the `egress-envoy` Deployment.        |
+| `sync_egress_config` | Re-applies the site's per-site egress ConfigMap/Deployment from its destinations. |
 
 ## Notes
 
 - The worker owns the container-config Secret; the reconciler only references it.
-- Egress sync preserves the `BEGIN MANAGED DESTINATIONS` / `END MANAGED DESTINATIONS` markers in the ConfigMap.
+- Egress sync preserves the `BEGIN MANAGED DESTINATIONS` / `END MANAGED DESTINATIONS` markers in the rendered Envoy config.

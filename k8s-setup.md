@@ -124,7 +124,6 @@ placeholder Cloudflare tokens and an ACME email.
 ```bash
 kubectl apply -f k8s/namespaces/
 kubectl apply -f k8s/envoy-ingress/
-kubectl apply -f k8s/egress/
 kubectl apply -f k8s/observability/
 kubectl apply -f k8s/local/           # local-dev only (see §4)
 ```
@@ -192,8 +191,9 @@ kubectl -n customer-workloads scale deploy/<sgtm-deployment> --replicas=1
 # or update desired_replicas/min_replicas/max_replicas for the site in Postgres
 ```
 
-You can also lower requests/limits in `k8s/egress/06-egress-deployment.yaml`
-and `k8s/observability/08-otel-collector-deployment.yaml` for the local cluster.
+You can also lower requests/limits in the generated per-site egress manifests
+(`buildEgressManifests` in `packages/kubernetes/src/egress.ts`) and
+`k8s/observability/08-otel-collector-deployment.yaml` for the local cluster.
 
 ### Reaching a site
 
@@ -272,7 +272,7 @@ The following latent bugs were fixed so the data plane starts and HTTPS proxying
 works. They were all found by applying the manifests to a fresh cluster and
 reading the resulting Envoy/kubelet errors.
 
-### `k8s/egress/05-egress-config.yaml`
+### Egress Envoy config (`packages/kubernetes/src/egress.ts`)
 
 1. **No admin listener.** The deployment's liveness/readiness probes hit
    `/ready` on port `9901`, but no admin block was configured, so Envoy never
@@ -340,15 +340,15 @@ export KUBECONFIG="$PWD/.kubeconfig/kubeconfig.yaml"
 
 kubectl get nodes
 kubectl get pods -n platform-system    # otel-collector Running
-kubectl get pods -n edge-system        # egress-envoy Running, Envoy proxy Running
-kubectl get pods -n customer-workloads # one sgtm pod Running per site
+kubectl get pods -n edge-system        # Envoy proxy Running
+kubectl get pods -n customer-workloads # one sgtm pod and one <site>-egress pod per site
 kubectl get httproute -A
 
-# HTTPS through the egress proxy (allowlisted host -> 200, other -> 403)
+# HTTPS through a site's egress proxy (allowlisted host -> 200, other -> 403)
 kubectl run curl --rm -it --restart=Never -n customer-workloads \
   --image=curlimages/curl --command -- \
   sh -c 'curl -s -o /dev/null -w "%{http_code}\n" \
-    -x http://egress-envoy.edge-system.svc.cluster.local:8080 \
+    -x http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080 \
     https://www.googletagmanager.com/static/serverjs/server_bootstrap.js'
 
 # sGTM should log "Your tagging server is running"

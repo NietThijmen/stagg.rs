@@ -56,6 +56,32 @@ export function siteManifestNames(input: SiteManifestInput): SiteManifestNames {
   };
 }
 
+export interface EgressResourceNames {
+  name: string;
+  deploymentName: string;
+  configMapName: string;
+  serviceName: string;
+}
+
+/** Per-site egress proxy resources, co-located with the site in its namespace. */
+export function egressResourceNames(siteId: string): EgressResourceNames {
+  const name = `${siteResourceName(siteId)}-egress`;
+  return {
+    name,
+    deploymentName: name,
+    configMapName: `${name}-config`,
+    serviceName: name,
+  };
+}
+
+/** Selector shared by a site's egress Deployment, Service and NetworkPolicy. */
+export function egressSelectorLabels(siteId: string): Record<string, string> {
+  return {
+    'app.kubernetes.io/name': 'egress-envoy',
+    'staggers.io/site-id': siteId,
+  };
+}
+
 /**
  * Generate the full set of Kubernetes manifests for a single site. The output
  * mirrors k8s/sgtm/03-example-deployment.yaml and 04-network-policy.yaml with
@@ -188,7 +214,9 @@ function deployment(args: {
   const { input, name, secretName, serviceAccountName, labels, selectorLabels } = args;
   const { site, namespace } = input;
 
-  const egressService = input.egressService ?? `egress-envoy.${input.edgeNamespace}.svc.cluster.local`;
+  const egressService =
+    input.egressService ??
+    `${egressResourceNames(site.id).serviceName}.${namespace}.svc.cluster.local`;
   const egressPort = input.egressPort ?? SGTM_PORT;
   const egressUrl = `http://${egressService}:${egressPort}`;
   const previewServerUrl = `https://${site.previewHostname}`;
@@ -374,10 +402,7 @@ function networkPolicy(args: {
         {
           to: [
             {
-              namespaceSelector: {
-                matchLabels: { 'kubernetes.io/metadata.name': input.edgeNamespace },
-              },
-              podSelector: { matchLabels: { 'app.kubernetes.io/name': 'egress-envoy' } },
+              podSelector: { matchLabels: egressSelectorLabels(input.site.id) },
             },
           ],
           ports: [{ protocol: 'TCP', port: egressPort }],

@@ -1,6 +1,6 @@
 ---
 # Restrict sGTM pods so they cannot talk directly to the internet or other tenants.
-# All outbound traffic must go through egress-envoy.edge-system.
+# All outbound traffic must go through this site's egress proxy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -33,14 +33,12 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Platform egress proxy only.
+    # This site's egress proxy only.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: edge-system
-          podSelector:
+        - podSelector:
             matchLabels:
               app.kubernetes.io/name: egress-envoy
+              staggers.io/site-id: example
       ports:
         - protocol: TCP
           port: 8080

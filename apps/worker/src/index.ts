@@ -3,9 +3,9 @@ import { prisma, type ProvisioningJob } from '@staggers/db';
 import {
   applyManifests,
   buildContainerConfigSecret,
+  buildEgressManifests,
   createKubernetesClient,
   siteResourceName,
-  syncEgressAllowlist,
 } from '@staggers/kubernetes';
 import { initTelemetry } from '@staggers/telemetry';
 
@@ -54,18 +54,25 @@ async function provisionSite(job: ProvisioningJob) {
 }
 
 const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
-  sync_egress_config: async () => {
+  sync_egress_config: async (job) => {
+    const site = await requireSite(job);
+
     const destinations = await prisma.downstreamDestination.findMany({
-      where: { enabled: true },
+      where: { siteId: site.id, enabled: true },
     });
 
-    await syncEgressAllowlist(k8sClient, {
-      namespace: config.kubernetes.edgeNamespace,
-      hosts: destinations.map((destination) => destination.host),
-    });
+    await applyManifests(
+      k8sClient,
+      buildEgressManifests({
+        siteId: site.id,
+        namespace: config.kubernetes.namespace,
+        serviceAccountName: siteResourceName(site.id),
+        hosts: destinations.map((destination) => destination.host),
+      }),
+    );
 
     console.log(
-      `Synced egress allowlist with ${destinations.length} customer destination(s)`,
+      `Synced egress allowlist for site ${site.id} with ${destinations.length} destination(s)`,
     );
   },
   provision_site: provisionSite,

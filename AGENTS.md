@@ -95,7 +95,8 @@ repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
    - `provision_site` – writes the site's `containerConfig` to the
      `${siteResourceName(id)}-config` Secret, sets `containerConfigSecretName`,
      and sets site status to `pending`.
-   - `sync_egress_config` – rewrites the egress allowlist and rolls egress.
+   - `sync_egress_config` – rebuilds that site's egress ConfigMap from its
+     enabled destinations and re-applies the per-site egress stack.
 3. Reconciler (`apps/reconciler/src/index.ts`) polls sites in
    `pending|provisioning|degraded|deleting`, renders manifests
    (`buildSiteManifests`), applies them, and records readiness.
@@ -111,13 +112,21 @@ repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
   the reconciler only references it and deletes it on site teardown via
   `containerConfigSecretRef`.
 
-### Egress allowlist
+### Egress
 
-- `k8s/egress/05-egress-config.yaml` contains markers
-  `-- BEGIN MANAGED DESTINATIONS` / `-- END MANAGED DESTINATIONS`.
-- `packages/kubernetes/src/egress.ts` replaces everything between the markers
-  with `DEFAULT_EGRESS_HOSTS` plus enabled `downstream_destinations` rows, then
-  rolls the `egress-envoy` Deployment. **Never remove the markers.**
+- Egress is **per site**, co-located in the site's namespace. The reconciler
+  renders the egress stack alongside the site from the site's enabled
+  `downstream_destinations` via `buildEgressManifests`
+  (`packages/kubernetes/src/egress.ts`); the worker re-applies it on
+  `sync_egress_config`.
+- The egress Envoy config is a template in `egress.ts` with markers
+  `-- BEGIN MANAGED DESTINATIONS` / `-- END MANAGED DESTINATIONS` that are
+  replaced with `DEFAULT_EGRESS_HOSTS` plus the site's destinations. **Never
+  remove the markers.**
+- The site id is baked into each config as a static `saas.site_id` access-log
+  attribute (and the tracer service name) so egress telemetry is attributed per
+  customer without relying on a request header. The `staggers.io/egress-config-hash`
+  pod annotation rolls the proxy when the config changes.
 
 ### Dashboard auth
 
