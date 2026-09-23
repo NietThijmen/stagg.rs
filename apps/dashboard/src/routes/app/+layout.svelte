@@ -119,21 +119,23 @@
 						<DropdownMenuSeparator />
 						<DropdownMenuItem>
 							{#snippet child({ props })}
-								<a {...props} href="/app/websites" class="flex items-center">
-									<LayoutDashboard class="mr-2 size-4" />
+								<a {...props} href="/app/websites">
+									<LayoutDashboard class="block size-4" />
 									Dashboard
 								</a>
 							{/snippet}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem class="p-0">
-							<form method="POST" action="/app?/signOut" class="w-full">
-								<Button type="submit" variant="ghost" class="w-full justify-start">
-									<LogOut class="mr-2 size-4" />
-									Sign out
-								</Button>
-							</form>
-						</DropdownMenuItem>
+						<form method="POST" action="/app?/signOut">
+							<DropdownMenuItem>
+								{#snippet child({ props })}
+									<button {...props} type="submit">
+										<LogOut class="block size-4" />
+										Sign out
+									</button>
+								{/snippet}
+							</DropdownMenuItem>
+						</form>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
