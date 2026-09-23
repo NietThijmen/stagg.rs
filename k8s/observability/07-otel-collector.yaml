@@ -3,6 +3,10 @@
 # Receives OTLP traces/logs/metrics from Envoy, sGTM, and Node services.
 # Exports to ClickHouse for analytics and to console for debugging.
 # Requires the OpenTelemetry Collector Contrib image (clickhouse exporter).
+#
+# Connection settings are injected from the deployment environment so the same
+# config works with the in-cluster ClickHouse (k8s/data-stores/02-clickhouse.yaml)
+# or the docker-compose ClickHouse (k8s/local/00-clickhouse-bridge.yaml).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,9 +34,11 @@ data:
 
     exporters:
       clickhouse:
-        # Update with your ClickHouse DSN or use a Kubernetes secret in production.
-        endpoint: tcp://clickhouse.platform-system.svc.cluster.local:9000
-        database: otel
+        # Set via CLICKHOUSE_ENDPOINT (e.g. tcp://clickhouse.platform-system.svc.cluster.local:9000).
+        endpoint: ${env:CLICKHOUSE_ENDPOINT}
+        username: ${env:CLICKHOUSE_USERNAME}
+        password: ${env:CLICKHOUSE_PASSWORD}
+        database: ${env:CLICKHOUSE_DATABASE}
         traces_table_name: otel_traces
         logs_table_name: otel_logs
         metrics_table_name: otel_metrics
@@ -40,6 +46,11 @@ data:
         timeout: 10s
         # Default create database/tables. Disable in production after initial setup.
         create_schema: true
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
 
       debug:
         verbosity: detailed

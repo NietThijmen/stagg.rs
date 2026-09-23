@@ -1,7 +1,15 @@
 ---
 # Egress Envoy configuration.
-# Acts as a forward HTTP/HTTPS proxy for sGTM pods.
-# All outbound requests are logged via OTEL and restricted by destination allowlist.
+# Acts as an HTTP/HTTPS forward proxy for sGTM pods.
+#
+# Plain HTTP requests are forwarded with the dynamic forward proxy. HTTPS
+# requests arrive as HTTP CONNECT and are terminated by Envoy (see
+# `connect_config`) so the client's TLS session is tunnelled end to end.
+# Destination allowlisting is enforced by the Lua filter before forwarding.
+#
+# NOTE: the OpenTelemetry tracer config type is `envoy.config.trace.v3.OpenTelemetryConfig`
+# for the standard `envoyproxy/envoy` image. The `envoy.extensions...` variant is not
+# registered and will make Envoy exit at startup.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,6 +17,12 @@ metadata:
   namespace: edge-system
 data:
   envoy.yaml: |
+    admin:
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 9901
+
     static_resources:
       listeners:
         - name: egress_http
@@ -29,11 +43,66 @@ data:
                         - name: forward_proxy
                           domains: ["*"]
                           routes:
+                            # HTTPS through an HTTP proxy arrives as CONNECT.
+                            # `connect_config` terminates the tunnel and forwards
+                            # the raw TCP payload (the client's TLS session) upstream.
+                            - match:
+                                connect_matcher: {}
+                              route:
+                                cluster: dynamic_forward_proxy_cluster
+                                upgrade_configs:
+                                  - upgrade_type: CONNECT
+                                    connect_config: {}
+                            # Plain HTTP forward proxying.
                             - match:
                                 prefix: "/"
                               route:
                                 cluster: dynamic_forward_proxy_cluster
                                 timeout: 30s
+                    # Envoy rejects CONNECT with 403 unless the upgrade is enabled.
+                    upgrade_configs:
+                      - upgrade_type: CONNECT
+                    # OpenTelemetry access logging.
+                    access_log:
+                      - name: envoy.access_loggers.open_telemetry
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
+                          common_config:
+                            log_name: egress_access_log
+                            grpc_service:
+                              envoy_grpc:
+                                cluster_name: otel_collector_grpc
+                            transport_api_version: V3
+                          body:
+                            string_value: "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %RESPONSE_CODE%"
+                          attributes:
+                            values:
+                              - key: saas.component
+                                value:
+                                  string_value: egress
+                              - key: saas.site_id
+                                value:
+                                  string_value: "%REQ(X-SGTM-SITE-ID)%"
+                              - key: downstream.host
+                                value:
+                                  string_value: "%REQ(:AUTHORITY)%"
+                              - key: http.status_code
+                                value:
+                                  string_value: "%RESPONSE_CODE%"
+                              - key: envoy.response_flags
+                                value:
+                                  string_value: "%RESPONSE_FLAGS%"
+                    # OpenTelemetry tracing of egress requests.
+                    tracing:
+                      spawn_upstream_span: true
+                      provider:
+                        name: envoy.tracers.opentelemetry
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                          grpc_service:
+                            envoy_grpc:
+                              cluster_name: otel_collector_grpc
+                          service_name: egress-envoy
                     http_filters:
                       # Enforce destination allowlist before forwarding.
                       - name: envoy.filters.http.lua
@@ -80,66 +149,19 @@ data:
                       - name: envoy.filters.http.router
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-                    access_log:
-                      - name: envoy.access_loggers.open_telemetry
-                        typed_config:
-                          "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
-                          common_config:
-                            log_name: egress_access_log
-                            grpc_service:
-                              envoy_grpc:
-                                cluster_name: otel_collector_grpc
-                            transport_api_version: V3
-                          body:
-                            string_value: "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %RESPONSE_CODE%"
-                          attributes:
-                            values:
-                              - key: saas.component
-                                value:
-                                  string_value: egress
-                              - key: saas.site_id
-                                value:
-                                  string_value: "%REQ(x-sgtm-site-id)?%"
-                              - key: downstream.host
-                                value:
-                                  string_value: "%REQ(:AUTHORITY)%"
-                              - key: http.status_code
-                                value:
-                                  string_value: "%RESPONSE_CODE%"
-                              - key: envoy.response_flags
-                                value:
-                                  string_value: "%RESPONSE_FLAGS%"
-                    tracing:
-                      provider:
-                        name: envoy.tracers.opentelemetry
-                        typed_config:
-                          "@type": type.googleapis.com/envoy.tracers.opentelemetry.v3.OpenTelemetryConfig
-                          grpc_service:
-                            envoy_grpc:
-                              cluster_name: otel_collector_grpc
-                          service_name: egress-envoy
-                      spawn_upstream_span: true
 
       clusters:
         - name: dynamic_forward_proxy_cluster
           connect_timeout: 10s
           lb_policy: CLUSTER_PROVIDED
           cluster_type:
-            cluster_type: envoy.clusters.dynamic_forward_proxy
+            name: envoy.clusters.dynamic_forward_proxy
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
               dns_cache_config:
                 name: dynamic_forward_proxy_cache_config
                 dns_lookup_family: V4_ONLY
                 max_hosts: 1024
-          transport_socket:
-            name: envoy.transport_sockets.tls
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-              common_tls_context:
-                validation_context:
-                  trusted_ca:
-                    filename: /etc/ssl/certs/ca-certificates.crt
 
         - name: otel_collector_grpc
           connect_timeout: 1s
@@ -148,9 +170,8 @@ data:
           typed_extension_protocol_options:
             envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
               "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
-              upstream_protocol_options:
-                explicit_http_config:
-                  http2_protocol_options: {}
+              explicit_http_config:
+                http2_protocol_options: {}
           load_assignment:
             cluster_name: otel_collector_grpc
             endpoints:

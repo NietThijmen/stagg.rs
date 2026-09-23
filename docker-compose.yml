@@ -43,6 +43,7 @@ services:
     hostname: k3s-server
     command: server --disable traefik --disable servicelb
     privileged: true
+    restart: unless-stopped
     environment:
       K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
       K3S_KUBECONFIG_MODE: "666"
@@ -50,6 +51,7 @@ services:
     volumes:
       - k3s-server-data:/var/lib/rancher/k3s
       - ./.kubeconfig:/output
+      - ./.kubeconfig/machine-id:/etc/machine-id
     ports:
       - "6443:6443"
     healthcheck:

@@ -24,6 +24,21 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - "--config=/conf/otel-collector.yaml"
+          env:
+            # Local dev: `clickhouse` is bridged to the docker-compose instance by
+            # k8s/local/00-clickhouse-bridge.yaml. In-cluster: use the Service from
+            # k8s/data-stores/02-clickhouse.yaml.
+            - name: CLICKHOUSE_ENDPOINT
+              value: tcp://clickhouse.platform-system.svc.cluster.local:9000
+            - name: CLICKHOUSE_USERNAME
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: password
+            - name: CLICKHOUSE_DATABASE
+              value: otel
           ports:
             - name: otlp-grpc
               containerPort: 4317

@@ -45,9 +45,13 @@ spec:
       group: gateway.envoyproxy.io
       kind: EnvoyProxy
       name: public-proxy-config
-      namespace: edge-system
 ---
 # Custom Envoy proxy config to enable OTEL tracing and access logging.
+#
+# Envoy Gateway v1.1.x notes:
+# - `parametersRef` for `infrastructure` has no `namespace` field; the EnvoyProxy
+#   must live in the same namespace as the Gateway (edge-system here).
+# - `telemetry.accessLog.settings[].sinks` is required whenever a format is set.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
@@ -58,11 +62,13 @@ spec:
     accessLog:
       settings:
         - format:
-            type: JSON
-            json:
-              path: /dev/stdout
-          matches:
-            - "{}"
+            type: Text
+            text: |
+              [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
+          sinks:
+            - type: File
+              file:
+                path: /dev/stdout
     tracing:
       provider:
         type: OpenTelemetry
