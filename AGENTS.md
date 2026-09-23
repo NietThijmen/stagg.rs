@@ -92,20 +92,23 @@ repo-root `.env` via SvelteKit; the Node apps pass `--env-file=../../.env` to
 1. Dashboard creates a `Site` (with the user-supplied `containerConfig`) + a
    `provisioning_jobs` row (`provision_site`).
 2. Worker (`apps/worker/src/index.ts`) handles job types:
-   - `provision_site` – writes the site's `containerConfig` to the
-     `${siteResourceName(id)}-config` Secret, sets `containerConfigSecretName`,
-     and sets site status to `pending`.
+   - `provision_site` – ensures the site's namespace, writes the site's
+     `containerConfig` to the `${siteResourceName(id)}-config` Secret in it,
+     sets `containerConfigSecretName`, and sets site status to `pending`.
    - `sync_egress_config` – rebuilds that site's egress ConfigMap from its
      enabled destinations and re-applies the per-site egress stack.
 3. Reconciler (`apps/reconciler/src/index.ts`) polls sites in
    `pending|provisioning|degraded|deleting`, renders manifests
-   (`buildSiteManifests`), applies them, and records readiness.
+   (`buildSiteManifests` + `buildEgressManifests`), applies them, and records
+   readiness.
 
 ### Kubernetes manifests
 
-- `packages/kubernetes/src/manifests.ts` renders Secret (only when a raw
-  `containerConfig` is passed), ServiceAccount, Service, Deployment, HPA,
-  HTTPRoute, NetworkPolicy, ResourceQuota and LimitRange per site.
+- Every site owns a namespace `<K8S_NAMESPACE>-<site-id>` (see
+  `siteNamespace`); the sGTM Deployment and its egress proxy both live there.
+- `packages/kubernetes/src/manifests.ts` renders the Namespace, Secret (only
+  when a raw `containerConfig` is passed), ServiceAccount, Service, Deployment,
+  HPA, HTTPRoute, NetworkPolicy, ResourceQuota and LimitRange per site.
 - `apply.ts` uses **server-side apply** via `KubernetesObjectApi` with the
   shared field manager `staggers-platform`. `deleteManifests` ignores 404s.
 - The container-config Secret is owned by the **worker**, not the reconciler;
@@ -179,8 +182,8 @@ See `.env.example`. Notable variables:
 - `DATABASE_URL`, `CLICKHOUSE_*`
 - `WORKOS_CLIENT_ID`, `WORKOS_API_KEY`, `WORKOS_REDIRECT_URI`,
   `WORKOS_COOKIE_PASSWORD`
-- `KUBECONFIG`, `K8S_NAMESPACE` (default `customer-workloads`),
-  `K8S_EDGE_NAMESPACE` (default `edge-system`)
+- `KUBECONFIG`, `K8S_NAMESPACE` (base for per-site namespaces, default
+  `customer-workloads`), `K8S_EDGE_NAMESPACE` (default `edge-system`)
 - `PLATFORM_DOMAIN` (default `saas.example`), `SGTM_IMAGE`
 - `API_PORT` (default `4000`, used by `apps/api`)
 - `STAGGERS_API_URL`, `STAGGERS_API_TOKEN` (used by `apps/cli`)

@@ -47,6 +47,31 @@ export function siteResourceName(siteId: string): string {
   return toDnsName(`sgtm-${siteId}`);
 }
 
+/**
+ * Namespace that isolates a single site's workloads (sGTM plus its egress
+ * proxy). Derived from the base namespace so all tenant namespaces share the
+ * configured prefix.
+ */
+export function siteNamespace(siteId: string, baseNamespace: string): string {
+  return toDnsName(`${baseNamespace}-${siteId}`);
+}
+
+/** Namespace manifest that owns a site's sGTM and egress resources. */
+export function buildSiteNamespace(siteId: string, namespace: string): SiteManifest {
+  return {
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: namespace,
+      labels: {
+        'app.kubernetes.io/part-of': 'staggers-platform',
+        'app.kubernetes.io/managed-by': MANAGED_BY,
+        'staggers.io/site-id': siteId,
+      },
+    },
+  };
+}
+
 export function siteManifestNames(input: SiteManifestInput): SiteManifestNames {
   const name = siteResourceName(input.site.id);
   return {
@@ -97,7 +122,7 @@ export function buildSiteManifests(input: SiteManifestInput): SiteManifest[] {
     'staggers.io/site-id': site.id,
   };
 
-  const manifests: SiteManifest[] = [];
+  const manifests: SiteManifest[] = [buildSiteNamespace(site.id, namespace)];
 
   if (input.containerConfig !== undefined) {
     manifests.push(

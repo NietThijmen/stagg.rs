@@ -187,7 +187,7 @@ The k3s node is CPU-constrained. Each sGTM pod requests 1 CPU. A site with
 For local dev, keep sites small:
 
 ```bash
-kubectl -n customer-workloads scale deploy/<sgtm-deployment> --replicas=1
+kubectl -n customer-workloads-<site-id> scale deploy/<sgtm-deployment> --replicas=1
 # or update desired_replicas/min_replicas/max_replicas for the site in Postgres
 ```
 
@@ -341,16 +341,17 @@ export KUBECONFIG="$PWD/.kubeconfig/kubeconfig.yaml"
 kubectl get nodes
 kubectl get pods -n platform-system    # otel-collector Running
 kubectl get pods -n edge-system        # Envoy proxy Running
-kubectl get pods -n customer-workloads # one sgtm pod and one <site>-egress pod per site
+kubectl get pods -A -l app.kubernetes.io/part-of=staggers-platform
+                                       # per site: one sgtm pod and one <site>-egress pod
 kubectl get httproute -A
 
 # HTTPS through a site's egress proxy (allowlisted host -> 200, other -> 403)
-kubectl run curl --rm -it --restart=Never -n customer-workloads \
+kubectl run curl --rm -it --restart=Never -n customer-workloads-site-example \
   --image=curlimages/curl --command -- \
   sh -c 'curl -s -o /dev/null -w "%{http_code}\n" \
-    -x http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080 \
+    -x http://sgtm-site-example-egress.customer-workloads-site-example.svc.cluster.local:8080 \
     https://www.googletagmanager.com/static/serverjs/server_bootstrap.js'
 
 # sGTM should log "Your tagging server is running"
-kubectl logs -n customer-workloads -l app.kubernetes.io/name=sgtm --tail=5
+kubectl logs -n customer-workloads-site-example -l app.kubernetes.io/name=sgtm --tail=5
 ```

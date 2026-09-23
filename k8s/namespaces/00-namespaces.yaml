@@ -7,6 +7,9 @@ metadata:
     app.kubernetes.io/part-of: staggers-platform
     app.kubernetes.io/component: edge
 ---
+# Base namespace for customer workloads. The control plane creates one
+# namespace per site named `<K8S_NAMESPACE>-<site-id>` (e.g.
+# `customer-workloads-<uuid>`) to hold that site's sGTM and egress resources.
 apiVersion: v1
 kind: Namespace
 metadata:

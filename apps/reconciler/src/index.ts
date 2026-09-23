@@ -8,6 +8,7 @@ import {
   createKubernetesClient,
   deleteManifests,
   siteManifestNames,
+  siteNamespace,
   siteResourceName,
   type SiteManifestInput,
 } from '@staggers/kubernetes';
@@ -20,18 +21,21 @@ const k8sClient = createKubernetesClient(config.kubernetes);
 
 console.log('Kubernetes cluster:', k8sClient.kc.getCurrentCluster()?.name ?? 'unknown');
 
-function toManifestInput(site: {
-  id: string;
-  hostname: string;
-  previewHostname: string;
-  desiredReplicas: number;
-  minReplicas: number;
-  maxReplicas: number;
-  containerConfigSecretName: string | null;
-}): SiteManifestInput {
+function toManifestInput(
+  site: {
+    id: string;
+    hostname: string;
+    previewHostname: string;
+    desiredReplicas: number;
+    minReplicas: number;
+    maxReplicas: number;
+    containerConfigSecretName: string | null;
+  },
+  namespace: string,
+): SiteManifestInput {
   return {
     site,
-    namespace: config.kubernetes.namespace,
+    namespace,
     edgeNamespace: config.kubernetes.edgeNamespace,
     image: config.sgtmImage,
   };
@@ -46,15 +50,19 @@ async function reconcileSite(siteId: string) {
 
   console.log(`Reconciling site ${site.id} (${site.hostname})`);
 
-  const input = toManifestInput(site);
-  const manifests = [...buildSiteManifests(input), ...(await buildSiteEgress(site.id))];
+  const namespace = siteNamespace(site.id, config.kubernetes.namespace);
+  const input = toManifestInput(site, namespace);
+  const manifests = [
+    ...buildSiteManifests(input),
+    ...(await buildSiteEgress(site.id, namespace)),
+  ];
   const { name } = siteManifestNames(input);
 
   if (site.status === 'deleting') {
     console.log(`Deleting site ${site.id}`);
     const secretRef = containerConfigSecretRef({
       siteId: site.id,
-      namespace: config.kubernetes.namespace,
+      namespace,
       secretName: site.containerConfigSecretName ?? undefined,
     });
     await deleteManifests(k8sClient, [...manifests, secretRef]);
@@ -74,7 +82,7 @@ async function reconcileSite(siteId: string) {
     return;
   }
 
-  const ready = await isDeploymentReady(name, config.kubernetes.namespace);
+  const ready = await isDeploymentReady(name, namespace);
 
   await prisma.site.update({
     where: { id: site.id },
@@ -84,14 +92,14 @@ async function reconcileSite(siteId: string) {
   await recordDeployment(site.id, ready ? 'ready' : 'in_progress');
 }
 
-async function buildSiteEgress(siteId: string) {
+async function buildSiteEgress(siteId: string, namespace: string) {
   const destinations = await prisma.downstreamDestination.findMany({
     where: { siteId, enabled: true },
   });
 
   return buildEgressManifests({
     siteId,
-    namespace: config.kubernetes.namespace,
+    namespace,
     serviceAccountName: siteResourceName(siteId),
     hosts: destinations.map((destination) => destination.host),
   });

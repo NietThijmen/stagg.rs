@@ -1,12 +1,23 @@
 ---
 # Example per-website sGTM production deployment.
-# The control plane will generate one of these per Site/hostname.
-# Replace placeholder values (site-id, hostname, container secret) before applying.
+# The control plane will generate one of these per Site/hostname, each in its
+# own namespace (`<K8S_NAMESPACE>-<site-id>`) holding the sGTM and its egress
+# proxy. Replace placeholder values (site-id, hostname, container secret) before
+# applying.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: customer-workloads-site-example
+  labels:
+    app.kubernetes.io/part-of: staggers-platform
+    app.kubernetes.io/managed-by: staggers-reconciler
+    staggers.io/site-id: example
+---
 apiVersion: v1
 kind: Secret
 metadata:
   name: sgtm-site-example-config
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
   labels:
     app.kubernetes.io/part-of: staggers-platform
     staggers.io/site-id: example
@@ -19,7 +30,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sgtm-site-example
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
   labels:
     app.kubernetes.io/name: sgtm
     staggers.io/site-id: example
@@ -69,9 +80,9 @@ spec:
               value: "https://preview-site-example.saas.example"
             # Route all outbound requests through this site's egress proxy.
             - name: HTTP_PROXY
-              value: "http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080"
+              value: "http://sgtm-site-example-egress.customer-workloads-site-example.svc.cluster.local:8080"
             - name: HTTPS_PROXY
-              value: "http://sgtm-site-example-egress.customer-workloads.svc.cluster.local:8080"
+              value: "http://sgtm-site-example-egress.customer-workloads-site-example.svc.cluster.local:8080"
             - name: NO_PROXY
               value: "localhost,127.0.0.1,*.svc.cluster.local"
           resources:
@@ -104,7 +115,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sgtm-site-example
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
   labels:
     app.kubernetes.io/name: sgtm
     staggers.io/site-id: example
@@ -123,7 +134,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: sgtm-site-example
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
   labels:
     staggers.io/site-id: example
 automountServiceAccountToken: false
@@ -133,7 +144,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: sgtm-site-example
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -167,7 +178,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: sgtm-site-example
-  namespace: customer-workloads
+  namespace: customer-workloads-site-example
   labels:
     staggers.io/site-id: example
 spec:
@@ -180,7 +191,7 @@ spec:
   rules:
     - backendRefs:
         - name: sgtm-site-example
-          namespace: customer-workloads
+          namespace: customer-workloads-site-example
           port: 8080
       filters:
         # Envoy Gateway will forward its x-request-id header to the upstream.

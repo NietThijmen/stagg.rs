@@ -21,7 +21,9 @@ const k8s = createKubernetesClient({ kubeconfig: '/path/to/kubeconfig' });
 
 ### Manifests
 
-- `buildSiteManifests(input)` — renders all manifests for a site.
+- `buildSiteManifests(input)` — renders all manifests for a site (including its per-site Namespace).
+- `buildSiteNamespace(siteId, namespace)` — renders the per-site Namespace manifest.
+- `siteNamespace(siteId, baseNamespace)` — derives `<baseNamespace>-<site-id>`.
 - `buildContainerConfigSecret(input)` — renders the container-config Secret.
 - `siteManifestNames(input)` — returns resource names for a site.
 - `containerConfigSecretRef(input)` — returns a Secret reference for deletion.

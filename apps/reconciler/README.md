@@ -34,7 +34,7 @@ pnpm lint                 # typecheck
 ## Environment variables
 
 - `KUBECONFIG` — path to kubeconfig file; omit to use in-cluster config
-- `K8S_NAMESPACE` — namespace for site workloads (default `customer-workloads`)
+- `K8S_NAMESPACE` — base for per-site namespaces (`<base>-<site-id>`, default `customer-workloads`)
 - `K8S_EDGE_NAMESPACE` — namespace for Envoy Gateway / edge resources (default `edge-system`)
 - `SGTM_IMAGE` — container image used for sGTM deployments
 - `DATABASE_URL`

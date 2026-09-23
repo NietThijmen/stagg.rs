@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSiteManifests,
   siteManifestNames,
+  siteNamespace,
   siteResourceName,
   type SiteManifest,
   type SiteManifestInput,
@@ -34,6 +35,14 @@ describe('siteResourceName', () => {
   });
 });
 
+describe('siteNamespace', () => {
+  it('derives a per-site namespace from the base namespace', () => {
+    expect(siteNamespace('Abc_123', 'customer-workloads')).toBe(
+      'customer-workloads-abc-123',
+    );
+  });
+});
+
 describe('siteManifestNames', () => {
   it('derives a config secret name from the site', () => {
     const names = siteManifestNames(input);
@@ -59,12 +68,19 @@ describe('buildSiteManifests', () => {
         'HorizontalPodAutoscaler',
         'HTTPRoute',
         'LimitRange',
+        'Namespace',
         'NetworkPolicy',
         'ResourceQuota',
         'Service',
         'ServiceAccount',
       ].sort(),
     );
+  });
+
+  it('owns a per-site namespace', () => {
+    const namespace = find(buildSiteManifests(input), 'Namespace');
+    expect(namespace.metadata.name).toBe('customer-workloads');
+    expect(namespace.metadata.labels['staggers.io/site-id']).toBe(input.site.id);
   });
 
   it('emits a Secret only when a container config is provided', () => {

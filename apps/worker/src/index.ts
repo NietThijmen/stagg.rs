@@ -4,7 +4,9 @@ import {
   applyManifests,
   buildContainerConfigSecret,
   buildEgressManifests,
+  buildSiteNamespace,
   createKubernetesClient,
+  siteNamespace,
   siteResourceName,
 } from '@staggers/kubernetes';
 import { initTelemetry } from '@staggers/telemetry';
@@ -36,10 +38,12 @@ async function provisionSite(job: ProvisioningJob) {
   }
 
   const secretName = `${siteResourceName(site.id)}-config`;
+  const namespace = siteNamespace(site.id, config.kubernetes.namespace);
   await applyManifests(k8sClient, [
+    buildSiteNamespace(site.id, namespace),
     buildContainerConfigSecret({
       siteId: site.id,
-      namespace: config.kubernetes.namespace,
+      namespace,
       secretName,
       containerConfig: site.containerConfig,
     }),
@@ -56,20 +60,21 @@ async function provisionSite(job: ProvisioningJob) {
 const handlers: Record<string, (job: ProvisioningJob) => Promise<void>> = {
   sync_egress_config: async (job) => {
     const site = await requireSite(job);
+    const namespace = siteNamespace(site.id, config.kubernetes.namespace);
 
     const destinations = await prisma.downstreamDestination.findMany({
       where: { siteId: site.id, enabled: true },
     });
 
-    await applyManifests(
-      k8sClient,
-      buildEgressManifests({
+    await applyManifests(k8sClient, [
+      buildSiteNamespace(site.id, namespace),
+      ...buildEgressManifests({
         siteId: site.id,
-        namespace: config.kubernetes.namespace,
+        namespace,
         serviceAccountName: siteResourceName(site.id),
         hosts: destinations.map((destination) => destination.host),
       }),
-    );
+    ]);
 
     console.log(
       `Synced egress allowlist for site ${site.id} with ${destinations.length} destination(s)`,

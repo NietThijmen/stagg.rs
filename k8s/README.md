@@ -11,10 +11,10 @@ Website / Client
 Envoy Gateway (edge-system) — TLS termination, host routing, OTEL traces
     │
     ▼
-Per-site sGTM Deployment (customer-workloads)
+Per-site sGTM Deployment (customer-workloads-<site-id>)
     │
     ▼
-Per-site Egress Proxy (customer-workloads) — allowlisted forward proxy
+Per-site Egress Proxy (same namespace) — allowlisted forward proxy
     │
     ▼
 Downstream destinations (Google Analytics, Ads, etc.)
@@ -69,6 +69,7 @@ kubectl apply -f k8s/data-stores/
 
 `k8s/sgtm/03-example-deployment.yaml` is a template. The control plane will generate one per website with:
 
+- A dedicated namespace `<K8S_NAMESPACE>-<site-id>` (e.g. `customer-workloads-<uuid>`) owning all of that site's resources.
 - A unique Kubernetes `Deployment`, `Service`, `ServiceAccount`, `HPA`, and `NetworkPolicy`.
 - A `Secret` containing the GTM `CONTAINER_CONFIG`.
 - An `HTTPRoute` exposing the site on its custom hostname.
@@ -76,8 +77,8 @@ kubectl apply -f k8s/data-stores/
 
 ## Egress proxy
 
-Each site gets its own Envoy HTTP/HTTPS forward proxy, co-located in
-`customer-workloads`, with:
+Each site gets its own Envoy HTTP/HTTPS forward proxy in the same per-site
+namespace, with:
 
 - Destination allowlist enforced via Lua (`DEFAULT_EGRESS_HOSTS` plus that
   site's enabled `downstream_destinations`).
@@ -93,6 +94,7 @@ annotation rolls the proxy.
 
 ## Network isolation
 
+- Each site lives in its own namespace (`<K8S_NAMESPACE>-<site-id>`), so tenants are isolated from each other.
 - sGTM pods can only receive traffic from `edge-system`.
 - sGTM pods can only send outbound traffic to their own egress proxy and the OTEL collector.
 - Each site's egress proxy is the only workload for that site allowed unrestricted outbound access.

@@ -34,7 +34,7 @@ pnpm lint                 # typecheck
 ## Environment variables
 
 - `KUBECONFIG` — path to kubeconfig file; omit to use in-cluster config
-- `K8S_NAMESPACE` — namespace for site Secrets and egress resources (default `customer-workloads`)
+- `K8S_NAMESPACE` — base for per-site namespaces (`<base>-<site-id>`), default `customer-workloads`
 - `DATABASE_URL`
 - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`
 
